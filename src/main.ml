@@ -189,7 +189,9 @@ let scan_token scanner =
   | '>' ->
       add_token scanner
         { ttype = GREATER; lexeme = ">"; literal = None; line = scanner.line }
-  | _ -> report_error scanner scanner.line "Unexpected character"
+  | _ ->
+      report_error scanner scanner.line
+        (Printf.sprintf "Unexpected character: %c" c)
 
 let scan_tokens scanner =
   while not (is_at_end scanner) do
