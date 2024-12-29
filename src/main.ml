@@ -120,6 +120,8 @@ let advance scanner =
   scanner.current_lexeme <- scanner.current_lexeme + 1;
   scanner.source.[scanner.current_lexeme - 1]
 
+let advance_line scanner = scanner.line <- scanner.line + 1
+
 let report_error scanner line message =
   Printf.eprintf "[line %d] Error: %s\n" line message;
   scanner.had_error <- true
@@ -189,6 +191,7 @@ let scan_token scanner =
   | '>' ->
       add_token scanner
         { ttype = GREATER; lexeme = ">"; literal = None; line = scanner.line }
+  | '\n' -> advance_line scanner
   | _ ->
       report_error scanner scanner.line
         (Printf.sprintf "Unexpected character: %c" c)
@@ -196,8 +199,7 @@ let scan_token scanner =
 let scan_tokens scanner =
   while not (is_at_end scanner) do
     scanner.start_lexeme <- scanner.current_lexeme;
-    scan_token scanner;
-    scanner.line <- scanner.line + 1
+    scan_token scanner
   done;
   add_token scanner
     { ttype = EOF; lexeme = ""; literal = None; line = scanner.line };
