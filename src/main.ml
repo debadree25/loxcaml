@@ -198,7 +198,7 @@ let scan_tokens scanner =
     scanner.line <- scanner.line + 1
   done;
   add_token scanner
-    { ttype = EOF; lexeme = "EOF"; literal = None; line = scanner.line };
+    { ttype = EOF; lexeme = ""; literal = None; line = scanner.line };
   List.rev scanner.tokens
 
 let tokenize (source : string) : token_info list =
