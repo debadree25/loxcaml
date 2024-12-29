@@ -203,9 +203,12 @@ let scan_tokens scanner =
     { ttype = EOF; lexeme = ""; literal = None; line = scanner.line };
   List.rev scanner.tokens
 
-let tokenize (source : string) : token_info list =
+type tokenize_result = { tokens : token_info list; had_error : bool }
+
+let tokenize (source : string) : tokenize_result =
   let scanner = make_scanner source in
-  scan_tokens scanner
+  let tokens = scan_tokens scanner in
+  { tokens; had_error = scanner.had_error }
 
 let () =
   if Array.length Sys.argv < 3 then (
@@ -221,8 +224,10 @@ let () =
 
   let file_contents = In_channel.with_open_text filename In_channel.input_all in
 
-  if String.length file_contents > 0 then
-    let tokens = tokenize file_contents in
-    List.iter (fun t -> print_endline (token_info_to_str t)) tokens
-  else print_endline "EOF  null";
-  ()
+  if String.length file_contents > 0 then (
+    let tokenize_result = tokenize file_contents in
+    List.iter
+      (fun t -> print_endline (token_info_to_str t))
+      tokenize_result.tokens;
+    if tokenize_result.had_error then exit 65 else print_endline "EOF  null";
+    ())
