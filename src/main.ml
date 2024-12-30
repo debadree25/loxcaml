@@ -232,3 +232,6 @@ let () =
       (fun t -> print_endline (token_info_to_str t))
       tokenize_result.tokens;
     if tokenize_result.had_error then exit 65 else ())
+  else
+    print_endline
+      (token_info_to_str { ttype = EOF; lexeme = ""; literal = None; line = 1 })
