@@ -253,9 +253,9 @@ let consume_number scanner =
 
 let consume_identifier scanner =
   while
-    (peek scanner >= 'A' && peek scanner <= 'Z')
-    || (peek scanner >= 'a' && peek scanner <= 'z')
-    || (peek scanner >= '0' && peek scanner <= '9')
+    match peek scanner with
+    | 'A' .. 'Z' | 'a' .. 'z' | '0' .. '9' | '_' -> true
+    | _ -> false
   do
     ignore (advance scanner)
   done;
@@ -263,11 +263,7 @@ let consume_identifier scanner =
   let length = scanner.current_lexeme - start in
   let literal = String.sub scanner.source start length in
   let reserved = string_to_reseved_word literal in
-  let token =
-    match reserved with
-    | Some t -> t
-    | None -> IDENTIFIER literal
-  in
+  let token = match reserved with Some t -> t | None -> IDENTIFIER literal in
   add_token scanner token None scanner.line
 
 let scan_token scanner =
