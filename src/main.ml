@@ -179,6 +179,11 @@ let match_next (scanner : scanner) expected =
 
 let advance_line scanner = scanner.line <- scanner.line + 1
 
+let consume_comment scanner =
+  while peek scanner <> '\n' && not (is_at_end scanner) do
+    ignore (advance scanner)
+  done
+
 let report_error scanner line message =
   Printf.eprintf "[line %d] Error: %s\n" line message;
   scanner.had_error <- true
@@ -198,9 +203,7 @@ let scan_token scanner =
   | '*' -> add_token scanner STAR None scanner.line
   | '/' ->
     if match_next scanner '/' then
-      while peek scanner <> '\n' && not (is_at_end scanner) do
-        ignore (advance scanner)
-      done
+      consume_comment scanner
     else add_token scanner SLASH None scanner.line
   | '!' ->
       if match_next scanner '=' then
@@ -219,6 +222,7 @@ let scan_token scanner =
         add_token scanner GREATER_EQUAL None scanner.line
       else add_token scanner GREATER None scanner.line
   | '\n' -> advance_line scanner
+  | ' ' | '\r' | '\t' -> ()
   | _ ->
       report_error scanner scanner.line
         (Printf.sprintf "Unexpected character: %c" c)
