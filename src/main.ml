@@ -196,6 +196,12 @@ let scan_token scanner =
   | '+' -> add_token scanner PLUS None scanner.line
   | ';' -> add_token scanner SEMICOLON None scanner.line
   | '*' -> add_token scanner STAR None scanner.line
+  | '/' ->
+    if match_next scanner '/' then
+      while peek scanner <> '\n' && not (is_at_end scanner) do
+        ignore (advance scanner)
+      done
+    else add_token scanner SLASH None scanner.line
   | '!' ->
       if match_next scanner '=' then
         add_token scanner BANG_EQUAL None scanner.line
