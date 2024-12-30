@@ -194,7 +194,7 @@ let consume_string scanner =
     ignore (advance scanner)
   done;
   if is_at_end scanner then
-    report_error scanner scanner.line "Unterminated string"
+    report_error scanner scanner.line "Unterminated string."
   else
     let _ = advance scanner in
     let start_str = scanner.start_lexeme + 1 in
