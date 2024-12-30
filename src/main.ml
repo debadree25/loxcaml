@@ -60,7 +60,7 @@ let token_type_to_name_str t =
   | GREATER_EQUAL -> "GREATER_EQUAL"
   | LESS -> "LESS"
   | LESS_EQUAL -> "LESS_EQUAL"
-  | IDENTIFIER s -> "IDENTIFIER " ^ s
+  | IDENTIFIER _ -> "IDENTIFIER"
   | STRING _ -> "STRING"
   | NUMBER _ -> "NUMBER"
   | AND -> "AND"
@@ -124,6 +124,25 @@ let token_type_to_str t =
   | EOF -> ""
 
 type literal = LString of string | LNumber of float
+
+let string_to_reseved_word = function
+  | "and" -> Some AND
+  | "class" -> Some CLASS
+  | "else" -> Some ELSE
+  | "false" -> Some FALSE
+  | "for" -> Some FOR
+  | "fun" -> Some FUN
+  | "if" -> Some IF
+  | "nil" -> Some NIL
+  | "or" -> Some OR
+  | "print" -> Some PRINT
+  | "return" -> Some RETURN
+  | "this" -> Some THIS
+  | "true" -> Some TRUE
+  | "var" -> Some VAR
+  | "while" -> Some WHILE
+  | "super" -> Some SUPER
+  | _ -> None
 
 type token_info = {
   ttype : token;
@@ -216,7 +235,7 @@ let consume_string scanner =
     let literal = String.sub scanner.source start_str length in
     add_token scanner (STRING literal) (Some (LString literal)) scanner.line
 
-let consume_digit scanner =
+let consume_number scanner =
   while peek scanner >= '0' && peek scanner <= '9' do
     ignore (advance scanner)
   done;
@@ -231,6 +250,25 @@ let consume_digit scanner =
   let literal = String.sub scanner.source start length in
   let number = float_of_string literal in
   add_token scanner (NUMBER literal) (Some (LNumber number)) scanner.line
+
+let consume_identifier scanner =
+  while
+    (peek scanner >= 'A' && peek scanner <= 'Z')
+    || (peek scanner >= 'a' && peek scanner <= 'z')
+    || (peek scanner >= '0' && peek scanner <= '9')
+  do
+    ignore (advance scanner)
+  done;
+  let start = scanner.start_lexeme in
+  let length = scanner.current_lexeme - start in
+  let literal = String.sub scanner.source start length in
+  let reserved = string_to_reseved_word literal in
+  let token =
+    match reserved with
+    | Some t -> t
+    | None -> IDENTIFIER literal
+  in
+  add_token scanner token None scanner.line
 
 let scan_token scanner =
   let c = advance scanner in
@@ -267,7 +305,8 @@ let scan_token scanner =
   | '\n' -> advance_line scanner
   | ' ' | '\r' | '\t' -> ()
   | '"' -> consume_string scanner
-  | '0' .. '9' -> consume_digit scanner
+  | '0' .. '9' -> consume_number scanner
+  | 'A' .. 'Z' | 'a' .. 'z' | '_' -> consume_identifier scanner
   | _ ->
       report_error scanner scanner.line
         (Printf.sprintf "Unexpected character: %c" c)
