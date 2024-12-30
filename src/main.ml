@@ -61,8 +61,8 @@ let token_type_to_name_str t =
   | LESS -> "LESS"
   | LESS_EQUAL -> "LESS_EQUAL"
   | IDENTIFIER s -> "IDENTIFIER " ^ s
-  | STRING s -> "STRING " ^ s
-  | NUMBER n -> "NUMBER " ^ string_of_float n
+  | STRING _ -> "STRING"
+  | NUMBER _ -> "NUMBER"
   | AND -> "AND"
   | CLASS -> "CLASS"
   | ELSE -> "ELSE"
@@ -103,7 +103,7 @@ let token_type_to_str t =
   | LESS -> "<"
   | LESS_EQUAL -> "<="
   | IDENTIFIER s -> s
-  | STRING s -> s
+  | STRING s -> Printf.sprintf "\"%s\"" s
   | NUMBER n -> string_of_float n
   | AND -> "and"
   | CLASS -> "class"
@@ -168,6 +168,8 @@ let advance scanner =
   scanner.current_lexeme <- scanner.current_lexeme + 1;
   scanner.source.[scanner.current_lexeme - 1]
 
+let advance_line scanner = scanner.line <- scanner.line + 1
+
 let peek scanner =
   if is_at_end scanner then '\000' else scanner.source.[scanner.current_lexeme]
 
@@ -177,16 +179,29 @@ let match_next (scanner : scanner) expected =
     ignore (advance scanner);
     true)
 
-let advance_line scanner = scanner.line <- scanner.line + 1
+let report_error scanner line message =
+  Printf.eprintf "[line %d] Error: %s\n" line message;
+  scanner.had_error <- true
 
 let consume_comment scanner =
   while peek scanner <> '\n' && not (is_at_end scanner) do
     ignore (advance scanner)
   done
 
-let report_error scanner line message =
-  Printf.eprintf "[line %d] Error: %s\n" line message;
-  scanner.had_error <- true
+let consume_string scanner =
+  while peek scanner <> '"' && not (is_at_end scanner) do
+    if peek scanner = '\n' then advance_line scanner;
+    ignore (advance scanner)
+  done;
+  if is_at_end scanner then
+    report_error scanner scanner.line "Unterminated string"
+  else
+    let _ = advance scanner in
+    let start_str = scanner.start_lexeme + 1 in
+    let end_str = scanner.current_lexeme - 1 in
+    let length = end_str - start_str in
+    let literal = String.sub scanner.source start_str length in
+    add_token scanner (STRING literal) (Some literal) scanner.line
 
 let scan_token scanner =
   let c = advance scanner in
@@ -202,9 +217,8 @@ let scan_token scanner =
   | ';' -> add_token scanner SEMICOLON None scanner.line
   | '*' -> add_token scanner STAR None scanner.line
   | '/' ->
-    if match_next scanner '/' then
-      consume_comment scanner
-    else add_token scanner SLASH None scanner.line
+      if match_next scanner '/' then consume_comment scanner
+      else add_token scanner SLASH None scanner.line
   | '!' ->
       if match_next scanner '=' then
         add_token scanner BANG_EQUAL None scanner.line
@@ -223,6 +237,7 @@ let scan_token scanner =
       else add_token scanner GREATER None scanner.line
   | '\n' -> advance_line scanner
   | ' ' | '\r' | '\t' -> ()
+  | '"' -> consume_string scanner
   | _ ->
       report_error scanner scanner.line
         (Printf.sprintf "Unexpected character: %c" c)
