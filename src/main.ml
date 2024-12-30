@@ -20,7 +20,7 @@ type token =
   | LESS_EQUAL
   | IDENTIFIER of string
   | STRING of string
-  | NUMBER of float
+  | NUMBER of string
   | AND
   | CLASS
   | ELSE
@@ -104,7 +104,7 @@ let token_type_to_str t =
   | LESS_EQUAL -> "<="
   | IDENTIFIER s -> s
   | STRING s -> Printf.sprintf "\"%s\"" s
-  | NUMBER n -> string_of_float n
+  | NUMBER n -> Printf.sprintf "%s" n
   | AND -> "and"
   | CLASS -> "class"
   | ELSE -> "else"
@@ -123,10 +123,12 @@ let token_type_to_str t =
   | WHILE -> "while"
   | EOF -> ""
 
+type literal = LString of string | LNumber of float
+
 type token_info = {
   ttype : token;
   lexeme : string;
-  literal : string option;
+  literal : literal option;
   line : int;
 }
 
@@ -134,7 +136,10 @@ let token_info_to_str (t : token_info) =
   Printf.sprintf "%s %s %s"
     (token_type_to_name_str t.ttype)
     t.lexeme
-    (match t.literal with None -> "null" | Some s -> s)
+    (match t.literal with
+    | None -> "null"
+    | Some s -> (
+        match s with LString s -> s | LNumber n -> Printf.sprintf "%f" n))
 
 let make_token_info ttype literal line =
   let lexeme = token_type_to_str ttype in
@@ -205,7 +210,7 @@ let consume_string scanner =
     let end_str = scanner.current_lexeme - 1 in
     let length = end_str - start_str in
     let literal = String.sub scanner.source start_str length in
-    add_token scanner (STRING literal) (Some literal) scanner.line
+    add_token scanner (STRING literal) (Some (LString literal)) scanner.line
 
 let consume_digit scanner =
   while peek scanner >= '0' && peek scanner <= '9' do
@@ -221,7 +226,7 @@ let consume_digit scanner =
   let length = scanner.current_lexeme - start in
   let literal = String.sub scanner.source start length in
   let number = float_of_string literal in
-  add_token scanner (NUMBER number) (Some literal) scanner.line
+  add_token scanner (NUMBER literal) (Some (LNumber number)) scanner.line
 
 let scan_token scanner =
   let c = advance scanner in
