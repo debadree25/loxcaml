@@ -139,7 +139,11 @@ let token_info_to_str (t : token_info) =
     (match t.literal with
     | None -> "null"
     | Some s -> (
-        match s with LString s -> s | LNumber n -> Printf.sprintf "%f" n))
+        match s with
+        | LString s -> s
+        | LNumber n ->
+            if Float.is_integer n then Printf.sprintf "%.01f" n
+            else Printf.sprintf "%f" n))
 
 let make_token_info ttype literal line =
   let lexeme = token_type_to_str ttype in
