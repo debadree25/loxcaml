@@ -173,6 +173,10 @@ let advance_line scanner = scanner.line <- scanner.line + 1
 let peek scanner =
   if is_at_end scanner then '\000' else scanner.source.[scanner.current_lexeme]
 
+let peek_next scanner =
+  if scanner.current_lexeme + 1 >= String.length scanner.source then '\000'
+  else scanner.source.[scanner.current_lexeme + 1]
+
 let match_next (scanner : scanner) expected =
   if peek scanner <> expected then false
   else (
@@ -202,6 +206,22 @@ let consume_string scanner =
     let length = end_str - start_str in
     let literal = String.sub scanner.source start_str length in
     add_token scanner (STRING literal) (Some literal) scanner.line
+
+let consume_digit scanner =
+  while peek scanner >= '0' && peek scanner <= '9' do
+    ignore (advance scanner)
+  done;
+  if peek scanner = '.' && peek_next scanner >= '0' && peek_next scanner <= '9'
+  then (
+    ignore (advance scanner);
+    while peek scanner >= '0' && peek scanner <= '9' do
+      ignore (advance scanner)
+    done);
+  let start = scanner.start_lexeme in
+  let length = scanner.current_lexeme - start in
+  let literal = String.sub scanner.source start length in
+  let number = float_of_string literal in
+  add_token scanner (NUMBER number) (Some literal) scanner.line
 
 let scan_token scanner =
   let c = advance scanner in
@@ -238,6 +258,7 @@ let scan_token scanner =
   | '\n' -> advance_line scanner
   | ' ' | '\r' | '\t' -> ()
   | '"' -> consume_string scanner
+  | '0' .. '9' -> consume_digit scanner
   | _ ->
       report_error scanner scanner.line
         (Printf.sprintf "Unexpected character: %c" c)
