@@ -231,5 +231,4 @@ let () =
     List.iter
       (fun t -> print_endline (token_info_to_str t))
       tokenize_result.tokens;
-    if tokenize_result.had_error then exit 65 else print_endline "EOF  null";
-    ())
+    if tokenize_result.had_error then exit 65 else ())
