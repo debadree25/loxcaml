@@ -224,7 +224,7 @@ let string_to_reseved_word = function
   | "super" -> Some SUPER
   | _ -> None
 
-type literal = LString of string | LNumber of float
+type literal = LString of string | LNumber of float | LBool of bool | LNil
 
 type token_info = {
   ttype : token;
@@ -233,18 +233,19 @@ type token_info = {
   line : int;
 }
 
+let literal_to_str = function
+  | LString s -> s
+  | LNumber n ->
+      if Float.is_integer n then Printf.sprintf "%.01f" n
+      else Printf.sprintf "%.15g" n
+  | LBool b -> string_of_bool b
+  | LNil -> "null"
+
 let token_info_to_str (t : token_info) =
   Printf.sprintf "%s %s %s"
     (token_type_to_name_str t.ttype)
     t.lexeme
-    (match t.literal with
-    | None -> "null"
-    | Some s -> (
-        match s with
-        | LString s -> s
-        | LNumber n ->
-            if Float.is_integer n then Printf.sprintf "%.01f" n
-            else Printf.sprintf "%.15g" n))
+    (match t.literal with None -> "null" | Some s -> literal_to_str s)
 
 let make_token_info ttype literal line =
   let lexeme = token_type_to_str ttype in

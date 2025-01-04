@@ -14,6 +14,7 @@ let peek parser = parser.tokens.(parser.current).ttype
 let peek_with_token_info parser = parser.tokens.(parser.current)
 let is_at_end parser = match peek parser with EOF -> true | _ -> false
 let previous parser = parser.tokens.(parser.current - 1).ttype
+let previous_with_token_info parser = parser.tokens.(parser.current - 1)
 
 let advance parser =
   if not (is_at_end parser) then parser.current <- parser.current + 1;
@@ -56,6 +57,15 @@ let report_error parser (parse_error : parse_error) =
     | _ -> Printf.sprintf "at '%s'" token.lexeme)
     message;
   parser.had_error <- true
+
+let literal_from_token_info token_info =
+  match token_info.ttype with
+  | NUMBER n -> Some (LNumber (float_of_string n))
+  | STRING s -> Some (LString s)
+  | TRUE -> Some (LBool true)
+  | FALSE -> Some (LBool false)
+  | NIL -> Some LNil
+  | _ -> None
 
 let rec expression parser = equality parser
 
@@ -109,7 +119,12 @@ and primary parser =
   if
     match_tokens_by_pattern parser
       [ T_FALSE; T_TRUE; T_NIL; T_NUMBER; T_STRING ]
-  then Ok (Literal (previous parser))
+  then
+    let token_info = previous_with_token_info parser in
+    let literal = literal_from_token_info token_info in
+    match literal with
+    | Some lit -> Ok (Literal lit)
+    | None -> Error ("Expect literal", token_info)
   else if match_tokens parser [ LEFT_PAREN ] then
     match expression parser with
     | Ok expr -> (
