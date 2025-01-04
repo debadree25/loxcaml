@@ -147,9 +147,7 @@ let scan_tokens scanner =
   add_token scanner EOF None scanner.line;
   List.rev scanner.tokens
 
-type tokenize_result = { tokens : token_info list; had_error : bool }
-
-let tokenize (source : string) : tokenize_result =
+let tokenize (source : string) : (token_info list, string) result =
   let scanner = make_scanner source in
   let tokens = scan_tokens scanner in
-  { tokens; had_error = scanner.had_error }
+  if scanner.had_error then Error "Tokenization error" else Ok tokens

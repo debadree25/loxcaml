@@ -1,5 +1,32 @@
 open Scanner
 open Token
+open Parser
+open Ast
+
+let tokenize_handler file_contents =
+  match tokenize file_contents with
+  | Ok tokens ->
+      List.iter (fun token -> print_endline (token_info_to_str token)) tokens;
+      Ok ()
+  | Error _ -> Error 65
+
+let parse_handler file_contents =
+  match tokenize file_contents with
+  | Ok tokens -> (
+      match parse_tokens tokens with
+      | Ok expr ->
+          print_endline (ast_printer expr);
+          Ok ()
+      | Error _ -> exit 65)
+  | Error _ -> Error 65
+
+let command_handler command file_contents =
+  match command with
+  | "tokenize" -> tokenize_handler file_contents
+  | "parse" -> parse_handler file_contents
+  | _ ->
+      Printf.eprintf "Unknown command: %s\n" command;
+      Error 1
 
 let () =
   if Array.length Sys.argv < 3 then (
@@ -8,17 +35,10 @@ let () =
 
   let command = Sys.argv.(1) in
   let filename = Sys.argv.(2) in
-
-  if command <> "tokenize" then (
-    Printf.eprintf "Unknown command: %s\n" command;
-    exit 1);
-
   let file_contents = In_channel.with_open_text filename In_channel.input_all in
 
-  if String.length file_contents > 0 then (
-    let tokenize_result = tokenize file_contents in
-    List.iter
-      (fun t -> print_endline (token_info_to_str t))
-      tokenize_result.tokens;
-    if tokenize_result.had_error then exit 65 else ())
+  if String.length file_contents > 0 then
+    match command_handler command file_contents with
+    | Ok () -> ()
+    | Error code -> exit code
   else print_endline (token_info_to_str (make_token_info EOF None 1))
