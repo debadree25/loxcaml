@@ -26,27 +26,21 @@ let check_pattern parser expected =
   if is_at_end parser then false
   else token_to_token_pattern (peek parser) = expected
 
-let rec match_tokens parser tokens =
+let rec match_tokens_by_matcher matcher parser tokens =
   match tokens with
   | [] -> false
   | token :: remaining ->
-      if check parser token then (
+      if matcher parser token then (
         ignore (advance parser);
         true)
-      else match_tokens parser remaining
+      else match_tokens_by_matcher matcher parser remaining
 
-let rec match_tokens_by_pattern parser tokens =
-  match tokens with
-  | [] -> false
-  | token :: remaining ->
-      if check_pattern parser token then (
-        ignore (advance parser);
-        true)
-      else match_tokens_by_pattern parser remaining
+let match_tokens = match_tokens_by_matcher check
+let match_tokens_by_pattern = match_tokens_by_matcher check_pattern
 
 type parse_error = string * token_info
 
-let consume parser expected (message : string) : (token, parse_error) result =
+let consume parser expected (message : string) =
   if check parser expected then Ok (advance parser)
   else Error (message, peek_with_token_info parser)
 
@@ -59,61 +53,45 @@ let report_error parser (parse_error : parse_error) =
     message;
   parser.had_error <- true
 
-let rec expression (parser : parser) : (expr, parse_error) result =
-  equality parser
+let rec expression parser = equality parser
+
+and make_binary_continuation tokens_to_match continuation_fn parser left =
+  if match_tokens parser tokens_to_match then
+    let operator = previous parser in
+    match continuation_fn parser with
+    | Ok right ->
+        make_binary_continuation tokens_to_match continuation_fn parser
+          (Binary (left, operator, right))
+    | Error e -> Error e
+  else Ok left
 
 and equality parser =
+  let equality_continuation =
+    make_binary_continuation [ BANG_EQUAL; EQUAL_EQUAL ] comparison
+  in
   match comparison parser with
   | Ok expr -> equality_continuation parser expr
   | Error e -> Error e
 
-and equality_continuation parser left =
-  if match_tokens parser [ BANG_EQUAL; EQUAL_EQUAL ] then
-    let operator = previous parser in
-    match comparison parser with
-    | Ok right -> equality_continuation parser (Binary (left, operator, right))
-    | Error e -> Error e
-  else Ok left
-
 and comparison parser =
+  let comparison_continuation =
+    make_binary_continuation [ GREATER; GREATER_EQUAL; LESS; LESS_EQUAL ] term
+  in
   match term parser with
   | Ok expr -> comparison_continuation parser expr
   | Error e -> Error e
 
-and comparison_continuation parser left =
-  if match_tokens parser [ GREATER; GREATER_EQUAL; LESS; LESS_EQUAL ] then
-    let operator = previous parser in
-    match term parser with
-    | Ok right ->
-        comparison_continuation parser (Binary (left, operator, right))
-    | Error e -> Error e
-  else Ok left
-
 and term parser =
+  let term_continuation = make_binary_continuation [ MINUS; PLUS ] factor in
   match factor parser with
   | Ok expr -> term_continuation parser expr
   | Error e -> Error e
 
-and term_continuation parser left =
-  if match_tokens parser [ MINUS; PLUS ] then
-    let operator = previous parser in
-    match factor parser with
-    | Ok right -> term_continuation parser (Binary (left, operator, right))
-    | Error e -> Error e
-  else Ok left
-
 and factor parser =
+  let factor_continuation = make_binary_continuation [ SLASH; STAR ] unary in
   match unary parser with
   | Ok expr -> factor_continuation parser expr
   | Error e -> Error e
-
-and factor_continuation parser left =
-  if match_tokens parser [ SLASH; STAR ] then
-    let operator = previous parser in
-    match unary parser with
-    | Ok right -> factor_continuation parser (Binary (left, operator, right))
-    | Error e -> Error e
-  else Ok left
 
 and unary parser =
   if match_tokens parser [ BANG; MINUS ] then
@@ -137,7 +115,7 @@ and primary parser =
     | Error e -> Error e
   else Error ("Expect expression", peek_with_token_info parser)
 
-let parse_tokens (tokens : token_info list) : (expr, parse_error) result =
+let parse_tokens tokens =
   let parser = make_parser tokens in
   match expression parser with
   | Ok expr -> Ok expr
