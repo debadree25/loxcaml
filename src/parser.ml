@@ -19,6 +19,10 @@ let advance parser =
   if not (is_at_end parser) then parser.current <- parser.current + 1;
   previous parser
 
+let retreat parser =
+  if parser.current > 0 then parser.current <- parser.current - 1;
+  peek parser
+
 let check parser expected =
   if is_at_end parser then false else peek parser = expected
 
@@ -114,6 +118,16 @@ and primary parser =
         | Error e -> Error e)
     | Error e -> Error e
   else Error ("Expect expression", peek_with_token_info parser)
+
+let rec synchronize parser =
+  let prev = advance parser in
+  if is_at_end parser then ()
+  else
+    match prev with
+    | SEMICOLON -> ()
+    | CLASS | FUN | VAR | FOR | IF | WHILE | PRINT | RETURN ->
+        ignore (retreat parser)
+    | _ -> synchronize parser
 
 let parse_tokens tokens =
   let parser = make_parser tokens in
