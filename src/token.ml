@@ -239,7 +239,7 @@ let literal_to_str = function
       if Float.is_integer n then Printf.sprintf "%.01f" n
       else Printf.sprintf "%.15g" n
   | LBool b -> string_of_bool b
-  | LNil -> "null"
+  | LNil -> "nil"
 
 let token_info_to_str (t : token_info) =
   Printf.sprintf "%s %s %s"
