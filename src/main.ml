@@ -6,9 +6,11 @@ open Ast
 let tokenize_handler file_contents =
   match tokenize file_contents with
   | Ok tokens ->
-      List.iter (fun token -> print_endline (token_info_to_str token)) tokens;
+      print_endline (token_printer tokens);
       Ok ()
-  | Error _ -> Error 65
+  | Error (tokens, _) -> (
+      print_endline (token_printer tokens);
+      Error 65)
 
 let parse_handler file_contents =
   match tokenize file_contents with
@@ -17,7 +19,7 @@ let parse_handler file_contents =
       | Ok expr ->
           print_endline (ast_printer expr);
           Ok ()
-      | Error _ -> exit 65)
+      | Error _ -> Error 65)
   | Error _ -> Error 65
 
 let command_handler command file_contents =

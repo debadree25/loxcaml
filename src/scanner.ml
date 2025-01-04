@@ -147,7 +147,12 @@ let scan_tokens scanner =
   add_token scanner EOF None scanner.line;
   List.rev scanner.tokens
 
-let tokenize (source : string) : (token_info list, string) result =
+let tokenize source =
   let scanner = make_scanner source in
   let tokens = scan_tokens scanner in
-  if scanner.had_error then Error "Tokenization error" else Ok tokens
+  if scanner.had_error then Error (tokens, "Tokenization error") else Ok tokens
+
+let token_printer tokens =
+  List.fold_left
+    (fun acc token -> acc ^ token_info_to_str token ^ "\n")
+    "" tokens
