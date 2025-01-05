@@ -2,15 +2,16 @@ open Scanner
 open Token
 open Parser
 open Ast
+open Interpreter
 
 let tokenize_handler file_contents =
   match tokenize file_contents with
   | Ok tokens ->
       print_endline (token_printer tokens);
       Ok ()
-  | Error (tokens, _) -> (
+  | Error (tokens, _) ->
       print_endline (token_printer tokens);
-      Error 65)
+      Error 65
 
 let parse_handler file_contents =
   match tokenize file_contents with
@@ -22,10 +23,24 @@ let parse_handler file_contents =
       | Error _ -> Error 65)
   | Error _ -> Error 65
 
+let interpreter_handler file_contents =
+  match tokenize file_contents with
+  | Ok tokens -> (
+      match parse_tokens tokens with
+      | Ok expr -> (
+          match interpreter expr with
+          | Ok result ->
+              print_endline result;
+              Ok ()
+          | Error _ -> Error 65)
+      | Error _ -> Error 65)
+  | Error _ -> Error 65
+
 let command_handler command file_contents =
   match command with
   | "tokenize" -> tokenize_handler file_contents
   | "parse" -> parse_handler file_contents
+  | "evaluate" -> interpreter_handler file_contents
   | _ ->
       Printf.eprintf "Unknown command: %s\n" command;
       Error 1
