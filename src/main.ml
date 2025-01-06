@@ -32,7 +32,7 @@ let interpreter_handler file_contents =
           | Ok result ->
               print_endline result;
               Ok ()
-          | Error _ -> Error 65)
+          | Error _ -> Error 70)
       | Error _ -> Error 65)
   | Error _ -> Error 65
 
