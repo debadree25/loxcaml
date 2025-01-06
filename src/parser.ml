@@ -71,11 +71,12 @@ let rec expression parser = equality parser
 
 and make_binary_continuation tokens_to_match continuation_fn parser left =
   if match_tokens parser tokens_to_match then
-    let operator = previous parser in
+    let operator_info = previous_with_token_info parser in
+    let operator = operator_info.ttype in
     match continuation_fn parser with
     | Ok right ->
         make_binary_continuation tokens_to_match continuation_fn parser
-          (Binary (left, operator, right))
+          (Binary (left, operator, right, operator_info))
     | Error e -> Error e
   else Ok left
 
@@ -109,9 +110,10 @@ and factor parser =
 
 and unary parser =
   if match_tokens parser [ BANG; MINUS ] then
-    let operator = previous parser in
+    let operator_info = previous_with_token_info parser in
+    let operator = operator_info.ttype in
     match unary parser with
-    | Ok right -> Ok (Unary (operator, right))
+    | Ok right -> Ok (Unary (operator, right, operator_info))
     | Error e -> Error e
   else primary parser
 
