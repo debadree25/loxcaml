@@ -86,13 +86,21 @@ let rec evaluate_expr expr =
 
 let evaluate_print expr =
   match evaluate_expr expr with
-  | Ok lit -> Printf.printf "%s\n" (interpret_literal_to_str lit); Ok LNil
+  | Ok lit ->
+      Printf.printf "%s\n" (interpret_literal_to_str lit);
+      Ok LNil
   | Error err -> Error err
 
-let evaluate_statement stmt =
+let rec evaluate_statement stmt =
   match stmt with
   | Expression expr -> evaluate_expr expr
   | Print expr -> evaluate_print expr
+  | Evaluation stmt -> (
+      match evaluate_statement stmt with
+      | Ok lit ->
+          Printf.printf "%s\n" (interpret_literal_to_str lit);
+          Ok LNil
+      | Error err -> Error err)
 
 let interpreter stmts =
   let rec eval_stmts stmts =

@@ -6,7 +6,7 @@ type expr =
   | Literal of literal
   | Unary of token * expr * token_info
 
-type statement = Expression of expr | Print of expr
+type statement = Expression of expr | Print of expr | Evaluation of statement
 
 let rec expression_ast_printer = function
   | Binary (left, op, right, _) ->
@@ -19,9 +19,10 @@ let rec expression_ast_printer = function
       Printf.sprintf "(%s %s)" (token_type_to_str op)
         (expression_ast_printer expr)
 
-let statement_ast_printer = function
+let rec statement_ast_printer = function
   | Expression expr -> expression_ast_printer expr
   | Print expr -> Printf.sprintf "(print %s)" (expression_ast_printer expr)
+  | Evaluation stmt -> Printf.sprintf "(eval %s)" (statement_ast_printer stmt)
 
 let ast_printer stmts =
   let rec print_stmts = function

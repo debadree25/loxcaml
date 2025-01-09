@@ -23,14 +23,26 @@ let parse_handler file_contents =
       | Error _ -> Error 65)
   | Error _ -> Error 65
 
+let evaluation_handler file_contents =
+  match tokenize file_contents with
+  | Ok tokens -> (
+      match parse_tokens tokens with
+      | Ok stmts -> (
+          match
+            interpreter
+              (match stmts with [] -> [] | stmt :: _ -> [ Evaluation stmt ])
+          with
+          | Ok _ -> Ok ()
+          | Error _ -> Error 70)
+      | Error _ -> Error 65)
+  | Error _ -> Error 65
+
 let interpreter_handler file_contents =
   match tokenize file_contents with
   | Ok tokens -> (
       match parse_tokens tokens with
       | Ok stmts -> (
-          match interpreter stmts with
-          | Ok _ -> Ok ()
-          | Error _ -> Error 70)
+          match interpreter stmts with Ok _ -> Ok () | Error _ -> Error 70)
       | Error _ -> Error 65)
   | Error _ -> Error 65
 
@@ -38,6 +50,7 @@ let command_handler command file_contents =
   match command with
   | "tokenize" -> tokenize_handler file_contents
   | "parse" -> parse_handler file_contents
+  | "evaluate" -> evaluation_handler file_contents
   | "run" -> interpreter_handler file_contents
   | _ ->
       Printf.eprintf "Unknown command: %s\n" command;
