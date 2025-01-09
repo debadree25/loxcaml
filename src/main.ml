@@ -7,10 +7,10 @@ open Interpreter
 let tokenize_handler file_contents =
   match tokenize file_contents with
   | Ok tokens ->
-      print_endline (token_printer tokens);
+      token_printer tokens;
       Ok ()
   | Error (tokens, _) ->
-      print_endline (token_printer tokens);
+      token_printer tokens;
       Error 65
 
 let parse_handler file_contents =

@@ -153,6 +153,7 @@ let tokenize source =
   if scanner.had_error then Error (tokens, "Tokenization error") else Ok tokens
 
 let token_printer tokens =
-  List.fold_left
-    (fun acc token -> acc ^ token_info_to_str token ^ "\n")
-    "" tokens
+  print_endline
+    (List.fold_left
+       (fun acc token -> acc ^ token_info_to_str token ^ "\n")
+       "" tokens)
