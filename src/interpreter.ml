@@ -84,7 +84,23 @@ let rec evaluate_expr expr =
       | Error err, _ -> Error err
       | _, Error err -> Error err)
 
-let interpreter expr =
+let evaluate_print expr =
   match evaluate_expr expr with
-  | Ok lit -> Ok (interpret_literal_to_str lit)
-  | Error e -> Error e
+  | Ok lit -> Printf.printf "%s\n" (interpret_literal_to_str lit); Ok LNil
+  | Error err -> Error err
+
+let evaluate_statement stmt =
+  match stmt with
+  | Expression expr -> evaluate_expr expr
+  | Print expr -> evaluate_print expr
+
+let interpreter stmts =
+  let rec eval_stmts stmts =
+    match stmts with
+    | [] -> Ok ()
+    | stmt :: rest -> (
+        match evaluate_statement stmt with
+        | Ok _ -> eval_stmts rest
+        | Error err -> Error err)
+  in
+  eval_stmts stmts

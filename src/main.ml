@@ -17,8 +17,8 @@ let parse_handler file_contents =
   match tokenize file_contents with
   | Ok tokens -> (
       match parse_tokens tokens with
-      | Ok expr ->
-          print_endline (ast_printer expr);
+      | Ok stmts ->
+          ast_printer stmts;
           Ok ()
       | Error _ -> Error 65)
   | Error _ -> Error 65
@@ -27,11 +27,9 @@ let interpreter_handler file_contents =
   match tokenize file_contents with
   | Ok tokens -> (
       match parse_tokens tokens with
-      | Ok expr -> (
-          match interpreter expr with
-          | Ok result ->
-              print_endline result;
-              Ok ()
+      | Ok stmts -> (
+          match interpreter stmts with
+          | Ok _ -> Ok ()
           | Error _ -> Error 70)
       | Error _ -> Error 65)
   | Error _ -> Error 65
@@ -40,7 +38,7 @@ let command_handler command file_contents =
   match command with
   | "tokenize" -> tokenize_handler file_contents
   | "parse" -> parse_handler file_contents
-  | "evaluate" -> interpreter_handler file_contents
+  | "run" -> interpreter_handler file_contents
   | _ ->
       Printf.eprintf "Unknown command: %s\n" command;
       Error 1

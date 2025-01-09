@@ -136,6 +136,24 @@ and primary parser =
     | Error e -> Error e
   else Error ("Expect expression", peek_with_token_info parser)
 
+let rec statement parser =
+  if match_tokens parser [ PRINT ] then print_statement parser
+  else expression_statement parser
+
+and print_statement parser =
+  match expression parser with
+  | Ok expr ->
+      let _ = consume parser SEMICOLON "Expect ';' after value" in
+      Ok (Print expr)
+  | Error e -> Error e
+
+and expression_statement parser =
+  match expression parser with
+  | Ok expr ->
+      let _ = consume parser SEMICOLON "Expect ';' after expression" in
+      Ok (Expression expr)
+  | Error e -> Error e
+
 let rec synchronize parser =
   let prev = advance parser in
   if is_at_end parser then ()
@@ -146,10 +164,17 @@ let rec synchronize parser =
         ignore (retreat parser)
     | _ -> synchronize parser
 
+let rec parse parser =
+  if is_at_end parser then []
+  else
+    match statement parser with
+    | Ok stmt -> stmt :: parse parser
+    | Error e ->
+        report_error parser e;
+        synchronize parser;
+        parse parser
+
 let parse_tokens tokens =
   let parser = make_parser tokens in
-  match expression parser with
-  | Ok expr -> Ok expr
-  | Error e ->
-      report_error parser e;
-      Error e
+  let statements = parse parser in
+  if parser.had_error then Error 65 else Ok statements
