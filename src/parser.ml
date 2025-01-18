@@ -204,6 +204,7 @@ let rec parse parser =
     | Ok stmt -> stmt :: parse parser
     | Error e ->
         report_error parser e;
+        synchronize parser;
         parse parser
 
 let parse_tokens tokens =
