@@ -210,10 +210,9 @@ and print_statement parser =
 
 and expression_statement parser =
   match expression parser with
-  | Ok expr -> (
-      match consume parser SEMICOLON "Expect ';' after expression" with
-      | Ok _ -> Ok (Expression expr)
-      | Error e -> Error e)
+  | Ok expr ->
+         let _ = consume parser SEMICOLON "Expect ';' after expression" in
+          Ok (Expression expr)
   | Error e -> Error e
 
 and block parser =
