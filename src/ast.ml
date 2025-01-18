@@ -13,6 +13,7 @@ type statement =
   | Print of expr
   | Evaluation of statement
   | Var of token * token_info * expr option
+  | Block of statement list
 
 let rec expression_ast_printer = function
   | Binary (left, op, right, _) ->
@@ -37,6 +38,13 @@ let rec statement_ast_printer = function
       Printf.sprintf "(var %s = %s)" (token_type_to_str name)
         (expression_ast_printer expr)
   | Var (name, _, None) -> Printf.sprintf "(var %s)" (token_type_to_str name)
+  | Block stmts ->
+      let rec print_stmts = function
+        | [] -> ""
+        | stmt :: rest -> Printf.sprintf "%s\n%s" (statement_ast_printer stmt)
+                            (print_stmts rest)
+      in
+      Printf.sprintf "{\n%s}" (print_stmts stmts)
 
 let ast_printer stmts =
   let rec print_stmts = function

@@ -142,6 +142,18 @@ let rec evaluate_statement interpreter_state stmt =
   | Var (_, name_token_info, None) ->
       Hashtbl.add interpreter_state.bindings name_token_info.lexeme LNil;
       Ok LNil
+  | Block stmts -> evaluate_block interpreter_state stmts
+
+and evaluate_block interpreter_state stmts =
+  let rec eval_stmts stmts =
+    match stmts with
+    | [] -> Ok LNil
+    | stmt :: rest -> (
+        match evaluate_statement interpreter_state stmt with
+        | Ok _ -> eval_stmts rest
+        | Error err -> Error err)
+  in
+  eval_stmts stmts
 
 let interpreter stmts =
   let interpreter_state = make_interpreter_state () in

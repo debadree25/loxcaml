@@ -89,16 +89,14 @@ and assignment parser =
   if match_tokens parser [ EQUAL ] then
     match expr with
     | Ok exp -> (
-      let equals_tok = previous_with_token_info parser in
-      let value = assignment parser in
-      match exp with
-      | Variable (name, name_info) -> (
-        match value with
-        | Ok val_expr -> Ok (Assign (name, name_info, val_expr))
-        | Error e -> Error e
-      )
-      | _ -> Error ("Invalid assignment target", equals_tok)
-    )
+        let equals_tok = previous_with_token_info parser in
+        let value = assignment parser in
+        match exp with
+        | Variable (name, name_info) -> (
+            match value with
+            | Ok val_expr -> Ok (Assign (name, name_info, val_expr))
+            | Error e -> Error e)
+        | _ -> Error ("Invalid assignment target", equals_tok))
     | Error e -> Error e
   else expr
 
@@ -199,6 +197,7 @@ and var_declaration parser =
 
 and statement parser =
   if match_tokens parser [ PRINT ] then print_statement parser
+  else if match_tokens parser [ LEFT_BRACE ] then block parser
   else expression_statement parser
 
 and print_statement parser =
@@ -215,15 +214,29 @@ and expression_statement parser =
       Ok (Expression expr)
   | Error e -> Error e
 
-let rec parse parser =
-  if is_at_end parser then []
-  else
-    match declaration parser with
-    | Ok stmt -> stmt :: parse parser
-    | Error e ->
-        report_error parser e;
-        synchronize parser;
-        parse parser
+and block parser =
+  let block_helper =
+    parser_builder
+      (fun parser -> not (check parser RIGHT_BRACE || is_at_end parser))
+  in
+  let statements = block_helper parser in
+  let _ = consume parser RIGHT_BRACE "Expect '}' after block" in
+  Ok (Block statements)
+
+and parser_builder parsing_condition_fn parser =
+  let rec parser_builder_helper parser =
+    if parsing_condition_fn parser then (
+      match declaration parser with
+      | Ok stmt -> stmt :: parser_builder_helper parser
+      | Error e ->
+          report_error parser e;
+          synchronize parser;
+          parser_builder_helper parser)
+    else []
+  in
+  parser_builder_helper parser
+
+and parse parser = parser_builder (fun parser -> not (is_at_end parser)) parser
 
 let parse_tokens tokens =
   let parser = make_parser tokens in
