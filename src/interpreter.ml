@@ -6,6 +6,8 @@ type environment = {
   bindings : (string, literal) Hashtbl.t;
 }
 
+let (let*) = Result.bind
+
 let make_enviroment enclosing = { enclosing; bindings = Hashtbl.create 10 }
 
 let add_binding environment name value =
@@ -185,6 +187,15 @@ let rec evaluate_statement interpreter_state stmt =
       add_binding interpreter_state name_token_info.lexeme LNil;
       Ok LNil
   | Block stmts -> evaluate_block interpreter_state stmts
+  | If (condition, then_branch, else_branch) -> (
+    let* condition_lit = evaluate_expr interpreter_state condition in
+    if is_truthy condition_lit then
+      evaluate_statement interpreter_state then_branch
+    else
+      match else_branch with
+      | Some stmt -> evaluate_statement interpreter_state stmt
+      | None -> Ok LNil
+  )
 
 and evaluate_block interpreter_state stmts =
   push_environment interpreter_state;

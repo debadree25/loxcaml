@@ -199,7 +199,19 @@ and var_declaration parser =
 and statement parser =
   if match_tokens parser [ PRINT ] then print_statement parser
   else if match_tokens parser [ LEFT_BRACE ] then block parser
+  else if match_tokens parser [ IF ] then if_statement parser
   else expression_statement parser
+
+and if_statement parser =
+  let (let*) = Result.bind in
+  let* _ = consume parser LEFT_PAREN "Expect '(' after 'if'." in
+  let* condition = expression parser in
+  let* _ = consume parser RIGHT_PAREN "Expect ')' after if condition." in
+  let* then_branch = statement parser in
+  if match_tokens parser [ ELSE ] then
+    let* else_branch = statement parser in
+    Ok (If (condition, then_branch, Some else_branch))
+  else Ok (If (condition, then_branch, None))
 
 and print_statement parser =
   match expression parser with

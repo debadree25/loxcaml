@@ -14,6 +14,7 @@ type statement =
   | Evaluation of statement
   | Var of token * token_info * expr option
   | Block of statement list
+  | If of expr * statement * statement option
 
 let rec expression_ast_printer = function
   | Binary (left, op, right, _) ->
@@ -45,6 +46,14 @@ let rec statement_ast_printer = function
                             (print_stmts rest)
       in
       Printf.sprintf "{\n%s}" (print_stmts stmts)
+  | If (expr, then_stmt, else_stmt) ->
+      let else_str =
+        match else_stmt with
+        | Some stmt -> Printf.sprintf "else %s" (statement_ast_printer stmt)
+        | None -> ""
+      in
+      Printf.sprintf "if %s then %s %s" (expression_ast_printer expr)
+        (statement_ast_printer then_stmt) else_str
 
 let ast_printer stmts =
   let rec print_stmts = function
