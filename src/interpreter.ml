@@ -1,17 +1,69 @@
 open Ast
 open Token
 
-type interpreter_state = {
+type environment = {
+  enclosing : environment option;
   bindings : (string, literal) Hashtbl.t;
+}
+
+let make_enviroment enclosing = { enclosing; bindings = Hashtbl.create 10 }
+
+let add_binding environment name value =
+  Hashtbl.add environment.bindings name value
+
+let reassign_binding environment name value =
+  Hashtbl.replace environment.bindings name value
+
+let binding_exists environment name = Hashtbl.mem environment.bindings name
+
+type interpreter_state = {
+  mutable environment : environment;
   mutable had_error : bool;
 }
 
 let make_interpreter_state () =
-  { bindings = Hashtbl.create 10; had_error = false }
+  { environment = make_enviroment None; had_error = false }
 
 let report_runtime_error message token_info =
   Printf.eprintf "%s\n[line %d]\n" message token_info.line;
   Error message
+
+let push_environment interpreter_state =
+  interpreter_state.environment <-
+    make_enviroment (Some interpreter_state.environment)
+
+let pop_environment interpreter_state =
+  interpreter_state.environment <-
+    Option.get interpreter_state.environment.enclosing
+
+let add_binding interpreter_state name value =
+  add_binding interpreter_state.environment name value
+
+let get_binding_and_env interpreter_state name =
+  let rec get_binding_and_env' environment =
+    match Hashtbl.find_opt environment.bindings name with
+    | Some value -> Some (environment, name, value)
+    | None -> (
+        match environment.enclosing with
+        | Some enclosing -> get_binding_and_env' enclosing
+        | None -> None)
+  in
+  get_binding_and_env' interpreter_state.environment
+
+let get_binding_value interpreter_state name =
+  match get_binding_and_env interpreter_state name with
+  | Some (_, _, value) -> Ok value
+  | None -> Error (Printf.sprintf "Undefined variable %s." name)
+
+let binding_exists interpreter_state name =
+  match get_binding_and_env interpreter_state name with
+  | Some _ -> true
+  | None -> false
+
+let reassign_binding interpreter_state name value =
+  match get_binding_and_env interpreter_state name with
+  | Some (environment, name, _) -> Ok (reassign_binding environment name value)
+  | None -> Error (Printf.sprintf "Undefined variable %s." name)
 
 let interpret_literal_to_str = function
   | LBool b -> string_of_bool b
@@ -95,25 +147,15 @@ let rec evaluate_expr interpreter_state expr =
       | Error err, _ -> Error err
       | _, Error err -> Error err)
   | Variable (_, name_info) -> (
-      match Hashtbl.find_opt interpreter_state.bindings name_info.lexeme with
-      | Some lit -> Ok lit
-      | None ->
-          report_runtime_error
-            (Printf.sprintf "Undefined variable %s." name_info.lexeme)
-            name_info)
+      match get_binding_value interpreter_state name_info.lexeme with
+      | Ok lit -> Ok lit
+      | Error msg -> report_runtime_error msg name_info)
   | Assign (_, name_info, expr) -> (
       match evaluate_expr interpreter_state expr with
-      | Ok lit ->
-          let exists =
-            Hashtbl.mem interpreter_state.bindings name_info.lexeme
-          in
-          if exists then (
-            Hashtbl.replace interpreter_state.bindings name_info.lexeme lit;
-            Ok lit)
-          else
-            report_runtime_error
-              (Printf.sprintf "Undefined variable %s." name_info.lexeme)
-              name_info
+      | Ok lit -> (
+          match reassign_binding interpreter_state name_info.lexeme lit with
+          | Ok _ -> Ok lit
+          | Error err -> report_runtime_error err name_info)
       | Error err -> Error err)
 
 let evaluate_print interpreter_state expr =
@@ -136,15 +178,16 @@ let rec evaluate_statement interpreter_state stmt =
   | Var (_, name_token_info, Some expr) -> (
       match evaluate_expr interpreter_state expr with
       | Ok lit ->
-          Hashtbl.add interpreter_state.bindings name_token_info.lexeme lit;
+          add_binding interpreter_state name_token_info.lexeme lit;
           Ok LNil
       | Error err -> Error err)
   | Var (_, name_token_info, None) ->
-      Hashtbl.add interpreter_state.bindings name_token_info.lexeme LNil;
+      add_binding interpreter_state name_token_info.lexeme LNil;
       Ok LNil
   | Block stmts -> evaluate_block interpreter_state stmts
 
 and evaluate_block interpreter_state stmts =
+  push_environment interpreter_state;
   let rec eval_stmts stmts =
     match stmts with
     | [] -> Ok LNil
@@ -153,7 +196,9 @@ and evaluate_block interpreter_state stmts =
         | Ok _ -> eval_stmts rest
         | Error err -> Error err)
   in
-  eval_stmts stmts
+  let evaluated = eval_stmts stmts in
+  pop_environment interpreter_state;
+  evaluated
 
 let interpreter stmts =
   let interpreter_state = make_interpreter_state () in
