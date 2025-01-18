@@ -1,8 +1,16 @@
 open Ast
 open Token
 
+type interpreter_state = {
+  bindings : (string, literal) Hashtbl.t;
+  mutable had_error : bool;
+}
+
+let make_interpreter_state () =
+  { bindings = Hashtbl.create 10; had_error = false }
+
 let report_runtime_error message token_info =
-  Printf.eprintf "%s\n[line %d]" message token_info.line;
+  Printf.eprintf "%s\n[line %d]\n" message token_info.line;
   Error message
 
 let interpret_literal_to_str = function
@@ -69,45 +77,65 @@ let evaluate_binary left op right op_info =
         report_runtime_error "Operands must be two numbers or two strings."
           op_info
 
-let rec evaluate_expr expr =
+let rec evaluate_expr interpreter_state expr =
   match expr with
   | Literal lit -> Ok lit
-  | Grouping expr -> evaluate_expr expr
+  | Grouping expr -> evaluate_expr interpreter_state expr
   | Unary (op, right, op_info) -> (
-      match evaluate_expr right with
+      match evaluate_expr interpreter_state right with
       | Ok right_lit -> evaluate_unary op right_lit op_info
       | Error _ as e -> e)
   | Binary (left, op, right, op_info) -> (
-      match (evaluate_expr left, evaluate_expr right) with
+      match
+        ( evaluate_expr interpreter_state left,
+          evaluate_expr interpreter_state right )
+      with
       | Ok left_lit, Ok right_lit ->
           evaluate_binary left_lit op right_lit op_info
       | Error err, _ -> Error err
       | _, Error err -> Error err)
+  | Variable (_, name_info) -> (
+      match Hashtbl.find_opt interpreter_state.bindings name_info.lexeme with
+      | Some lit -> Ok lit
+      | None ->
+          report_runtime_error
+            (Printf.sprintf "Undefined variable %s." name_info.lexeme)
+            name_info)
 
-let evaluate_print expr =
-  match evaluate_expr expr with
+let evaluate_print interpreter_state expr =
+  match evaluate_expr interpreter_state expr with
   | Ok lit ->
       Printf.printf "%s\n" (interpret_literal_to_str lit);
       Ok LNil
   | Error err -> Error err
 
-let rec evaluate_statement stmt =
+let rec evaluate_statement interpreter_state stmt =
   match stmt with
-  | Expression expr -> evaluate_expr expr
-  | Print expr -> evaluate_print expr
+  | Expression expr -> evaluate_expr interpreter_state expr
+  | Print expr -> evaluate_print interpreter_state expr
   | Evaluation stmt -> (
-      match evaluate_statement stmt with
+      match evaluate_statement interpreter_state stmt with
       | Ok lit ->
           Printf.printf "%s\n" (interpret_literal_to_str lit);
           Ok LNil
       | Error err -> Error err)
+  | Var (_, name_token_info, Some expr) -> (
+      match evaluate_expr interpreter_state expr with
+      | Ok lit ->
+          Hashtbl.add interpreter_state.bindings name_token_info.lexeme lit;
+          Ok LNil
+      | Error err -> Error err)
+  | Var (_, name_token_info, None) ->
+      Hashtbl.add interpreter_state.bindings name_token_info.lexeme LNil;
+      Ok LNil
 
 let interpreter stmts =
+  let interpreter_state = make_interpreter_state () in
   let rec eval_stmts stmts =
     match stmts with
     | [] -> Ok ()
     | stmt :: rest -> (
-        match evaluate_statement stmt with
+        match evaluate_statement interpreter_state stmt with
         | Ok _ -> eval_stmts rest
         | Error err -> Error err)
   in

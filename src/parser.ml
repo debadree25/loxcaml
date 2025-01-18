@@ -49,6 +49,10 @@ let consume parser expected (message : string) =
   if check parser expected then Ok (advance parser)
   else Error (message, peek_with_token_info parser)
 
+let consume_by_pattern parser pattern (message : string) =
+  if check_pattern parser pattern then Ok (advance parser)
+  else Error (message, peek_with_token_info parser)
+
 let report_error parser (parse_error : parse_error) =
   let message, token = parse_error in
   Printf.eprintf "[line %d] Error: %s %s\n" token.line
@@ -127,6 +131,9 @@ and primary parser =
     match literal with
     | Some lit -> Ok (Literal lit)
     | None -> Error ("Expect literal", token_info)
+  else if match_tokens_by_pattern parser [ T_IDENTIFIER ] then
+    let token_info = previous_with_token_info parser in
+    Ok (Variable (token_info.ttype, token_info))
   else if match_tokens parser [ LEFT_PAREN ] then
     match expression parser with
     | Ok expr -> (
@@ -136,7 +143,43 @@ and primary parser =
     | Error e -> Error e
   else Error ("Expect expression", peek_with_token_info parser)
 
-let rec statement parser =
+let rec synchronize parser =
+  let prev = advance parser in
+  if is_at_end parser then ()
+  else
+    match prev with
+    | SEMICOLON -> ()
+    | CLASS | FUN | VAR | FOR | IF | WHILE | PRINT | RETURN ->
+        ignore (retreat parser)
+    | _ -> synchronize parser
+
+let rec declaration parser =
+  if match_tokens parser [ VAR ] then (
+    match var_declaration parser with
+    | Ok stmt -> Ok stmt
+    | Error e ->
+        synchronize parser;
+        Error e)
+  else statement parser
+
+and var_declaration parser =
+  let name = consume_by_pattern parser T_IDENTIFIER "Expect variable name" in
+  let name_token_info = previous_with_token_info parser in
+  match name with
+  | Ok name_token -> (
+      match
+        if match_tokens parser [ EQUAL ] then expression parser
+        else Ok (Literal LNil)
+      with
+      | Ok expr ->
+          let _ =
+            consume parser SEMICOLON "Expect ';' after variable declaration"
+          in
+          Ok (Var (name_token, name_token_info, Some expr))
+      | Error e -> Error e)
+  | Error e -> Error e
+
+and statement parser =
   if match_tokens parser [ PRINT ] then print_statement parser
   else expression_statement parser
 
@@ -154,24 +197,13 @@ and expression_statement parser =
       Ok (Expression expr)
   | Error e -> Error e
 
-let rec synchronize parser =
-  let prev = advance parser in
-  if is_at_end parser then ()
-  else
-    match prev with
-    | SEMICOLON -> ()
-    | CLASS | FUN | VAR | FOR | IF | WHILE | PRINT | RETURN ->
-        ignore (retreat parser)
-    | _ -> synchronize parser
-
 let rec parse parser =
   if is_at_end parser then []
   else
-    match statement parser with
+    match declaration parser with
     | Ok stmt -> stmt :: parse parser
     | Error e ->
         report_error parser e;
-        synchronize parser;
         parse parser
 
 let parse_tokens tokens =
