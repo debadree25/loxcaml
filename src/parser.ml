@@ -202,26 +202,29 @@ and statement parser =
 
 and print_statement parser =
   match expression parser with
-  | Ok expr ->
-      let _ = consume parser SEMICOLON "Expect ';' after value" in
-      Ok (Print expr)
+  | Ok expr -> (
+      match consume parser SEMICOLON "Expect ';' after value" with
+      | Ok _ -> Ok (Print expr)
+      | Error e -> Error e)
   | Error e -> Error e
 
 and expression_statement parser =
   match expression parser with
-  | Ok expr ->
-      let _ = consume parser SEMICOLON "Expect ';' after expression" in
-      Ok (Expression expr)
+  | Ok expr -> (
+      match consume parser SEMICOLON "Expect ';' after expression" with
+      | Ok _ -> Ok (Expression expr)
+      | Error e -> Error e)
   | Error e -> Error e
 
 and block parser =
   let block_helper =
-    parser_builder
-      (fun parser -> not (check parser RIGHT_BRACE || is_at_end parser))
+    parser_builder (fun parser ->
+        not (check parser RIGHT_BRACE || is_at_end parser))
   in
   let statements = block_helper parser in
-  let _ = consume parser RIGHT_BRACE "Expect '}' after block" in
-  Ok (Block statements)
+  match consume parser RIGHT_BRACE "Expect '}' after block" with
+  | Ok _ -> Ok (Block statements)
+  | Error e -> Error e
 
 and parser_builder parsing_condition_fn parser =
   let rec parser_builder_helper parser =
