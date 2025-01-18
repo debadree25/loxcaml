@@ -187,11 +187,12 @@ and var_declaration parser =
         if match_tokens parser [ EQUAL ] then expression parser
         else Ok (Literal LNil)
       with
-      | Ok expr ->
-          let _ =
+      | Ok expr -> (
+          match
             consume parser SEMICOLON "Expect ';' after variable declaration"
-          in
-          Ok (Var (name_token, name_token_info, Some expr))
+          with
+          | Ok _ -> Ok (Var (name_token, name_token_info, Some expr))
+          | Error e -> Error e)
       | Error e -> Error e)
   | Error e -> Error e
 
@@ -211,8 +212,8 @@ and print_statement parser =
 and expression_statement parser =
   match expression parser with
   | Ok expr ->
-         let _ = consume parser SEMICOLON "Expect ';' after expression" in
-          Ok (Expression expr)
+      let _ = consume parser SEMICOLON "Expect ';' after expression" in
+      Ok (Expression expr)
   | Error e -> Error e
 
 and block parser =
