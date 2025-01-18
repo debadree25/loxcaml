@@ -7,6 +7,8 @@ type parser = {
   mutable had_error : bool;
 }
 
+let ( let* ) = Result.bind
+
 let make_parser (tokens : token_info list) =
   { tokens = Array.of_list tokens; current = 0; had_error = false }
 
@@ -77,64 +79,52 @@ and make_binary_continuation tokens_to_match continuation_fn parser left =
   if match_tokens parser tokens_to_match then
     let operator_info = previous_with_token_info parser in
     let operator = operator_info.ttype in
-    match continuation_fn parser with
-    | Ok right ->
-        make_binary_continuation tokens_to_match continuation_fn parser
-          (Binary (left, operator, right, operator_info))
-    | Error e -> Error e
+    let* right = continuation_fn parser in
+    make_binary_continuation tokens_to_match continuation_fn parser
+      (Binary (left, operator, right, operator_info))
   else Ok left
 
 and assignment parser =
-  let expr = equality parser in
+  let* exp = equality parser in
   if match_tokens parser [ EQUAL ] then
-    match expr with
-    | Ok exp -> (
-        let equals_tok = previous_with_token_info parser in
-        let value = assignment parser in
-        match exp with
-        | Variable (name, name_info) -> (
-            match value with
-            | Ok val_expr -> Ok (Assign (name, name_info, val_expr))
-            | Error e -> Error e)
-        | _ -> Error ("Invalid assignment target", equals_tok))
-    | Error e -> Error e
-  else expr
+    let equals_tok = previous_with_token_info parser in
+    match exp with
+    | Variable (name, name_info) ->
+        let* val_expr = assignment parser in
+        Ok (Assign (name, name_info, val_expr))
+    | _ -> Error ("Invalid assignment target", equals_tok)
+  else Ok exp
 
 and equality parser =
   let equality_continuation =
     make_binary_continuation [ BANG_EQUAL; EQUAL_EQUAL ] comparison
   in
-  match comparison parser with
-  | Ok expr -> equality_continuation parser expr
-  | Error e -> Error e
+  let* expr = comparison parser in
+  equality_continuation parser expr
 
 and comparison parser =
   let comparison_continuation =
     make_binary_continuation [ GREATER; GREATER_EQUAL; LESS; LESS_EQUAL ] term
   in
-  match term parser with
-  | Ok expr -> comparison_continuation parser expr
-  | Error e -> Error e
+  let* expr = term parser in
+  comparison_continuation parser expr
 
 and term parser =
   let term_continuation = make_binary_continuation [ MINUS; PLUS ] factor in
-  match factor parser with
-  | Ok expr -> term_continuation parser expr
-  | Error e -> Error e
+  let* expr = factor parser in
+  term_continuation parser expr
 
 and factor parser =
   let factor_continuation = make_binary_continuation [ SLASH; STAR ] unary in
-  match unary parser with
-  | Ok expr -> factor_continuation parser expr
-  | Error e -> Error e
+  let* expr = unary parser in
+  factor_continuation parser expr
 
 and unary parser =
   if match_tokens parser [ BANG; MINUS ] then
     let operator_info = previous_with_token_info parser in
     let operator = operator_info.ttype in
-    match unary parser with
-    | Ok right -> Ok (Unary (operator, right, operator_info))
-    | Error e -> Error e
+    let* right = unary parser in
+    Ok (Unary (operator, right, operator_info))
   else primary parser
 
 and primary parser =
@@ -151,12 +141,9 @@ and primary parser =
     let token_info = previous_with_token_info parser in
     Ok (Variable (token_info.ttype, token_info))
   else if match_tokens parser [ LEFT_PAREN ] then
-    match expression parser with
-    | Ok expr -> (
-        match consume parser RIGHT_PAREN "Expect ')' after expression" with
-        | Ok _ -> Ok (Grouping expr)
-        | Error e -> Error e)
-    | Error e -> Error e
+    let* expr = expression parser in
+    let* _ = consume parser RIGHT_PAREN "Expect ')' after expression" in
+    Ok (Grouping expr)
   else Error ("Expect expression", peek_with_token_info parser)
 
 let rec synchronize parser =
@@ -179,22 +166,16 @@ let rec declaration parser =
   else statement parser
 
 and var_declaration parser =
-  let name = consume_by_pattern parser T_IDENTIFIER "Expect variable name" in
+  let* name_token =
+    consume_by_pattern parser T_IDENTIFIER "Expect variable name"
+  in
   let name_token_info = previous_with_token_info parser in
-  match name with
-  | Ok name_token -> (
-      match
-        if match_tokens parser [ EQUAL ] then expression parser
-        else Ok (Literal LNil)
-      with
-      | Ok expr -> (
-          match
-            consume parser SEMICOLON "Expect ';' after variable declaration"
-          with
-          | Ok _ -> Ok (Var (name_token, name_token_info, Some expr))
-          | Error e -> Error e)
-      | Error e -> Error e)
-  | Error e -> Error e
+  let* expr =
+    if match_tokens parser [ EQUAL ] then expression parser
+    else Ok (Literal LNil)
+  in
+  let* _ = consume parser SEMICOLON "Expect ';' after variable declaration" in
+  Ok (Var (name_token, name_token_info, Some expr))
 
 and statement parser =
   if match_tokens parser [ PRINT ] then print_statement parser
@@ -203,7 +184,6 @@ and statement parser =
   else expression_statement parser
 
 and if_statement parser =
-  let (let*) = Result.bind in
   let* _ = consume parser LEFT_PAREN "Expect '(' after 'if'." in
   let* condition = expression parser in
   let* _ = consume parser RIGHT_PAREN "Expect ')' after if condition." in
@@ -214,19 +194,14 @@ and if_statement parser =
   else Ok (If (condition, then_branch, None))
 
 and print_statement parser =
-  match expression parser with
-  | Ok expr -> (
-      match consume parser SEMICOLON "Expect ';' after value" with
-      | Ok _ -> Ok (Print expr)
-      | Error e -> Error e)
-  | Error e -> Error e
+  let* expr = expression parser in
+  let* _ = consume parser SEMICOLON "Expect ';' after value" in
+  Ok (Print expr)
 
 and expression_statement parser =
-  match expression parser with
-  | Ok expr ->
-      let _ = consume parser SEMICOLON "Expect ';' after expression" in
-      Ok (Expression expr)
-  | Error e -> Error e
+  let* expr = expression parser in
+  let _ = consume parser SEMICOLON "Expect ';' after expression" in
+  Ok (Expression expr)
 
 and block parser =
   let block_helper =
@@ -234,9 +209,8 @@ and block parser =
         not (check parser RIGHT_BRACE || is_at_end parser))
   in
   let statements = block_helper parser in
-  match consume parser RIGHT_BRACE "Expect '}' after block" with
-  | Ok _ -> Ok (Block statements)
-  | Error e -> Error e
+  let* _ = consume parser RIGHT_BRACE "Expect '}' after block" in
+  Ok (Block statements)
 
 and parser_builder parsing_condition_fn parser =
   let rec parser_builder_helper parser =

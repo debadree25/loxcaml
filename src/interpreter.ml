@@ -6,7 +6,7 @@ type environment = {
   bindings : (string, literal) Hashtbl.t;
 }
 
-let (let*) = Result.bind
+let ( let* ) = Result.bind
 
 let make_enviroment enclosing = { enclosing; bindings = Hashtbl.create 10 }
 
@@ -188,14 +188,13 @@ let rec evaluate_statement interpreter_state stmt =
       Ok LNil
   | Block stmts -> evaluate_block interpreter_state stmts
   | If (condition, then_branch, else_branch) -> (
-    let* condition_lit = evaluate_expr interpreter_state condition in
-    if is_truthy condition_lit then
-      evaluate_statement interpreter_state then_branch
-    else
-      match else_branch with
-      | Some stmt -> evaluate_statement interpreter_state stmt
-      | None -> Ok LNil
-  )
+      let* condition_lit = evaluate_expr interpreter_state condition in
+      if is_truthy condition_lit then
+        evaluate_statement interpreter_state then_branch
+      else
+        match else_branch with
+        | Some stmt -> evaluate_statement interpreter_state stmt
+        | None -> Ok LNil)
 
 and evaluate_block interpreter_state stmts =
   push_environment interpreter_state;
@@ -216,9 +215,8 @@ let interpreter stmts =
   let rec eval_stmts stmts =
     match stmts with
     | [] -> Ok ()
-    | stmt :: rest -> (
-        match evaluate_statement interpreter_state stmt with
-        | Ok _ -> eval_stmts rest
-        | Error err -> Error err)
+    | stmt :: rest ->
+        let* _ = evaluate_statement interpreter_state stmt in
+        eval_stmts rest
   in
   eval_stmts stmts
