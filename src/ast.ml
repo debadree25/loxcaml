@@ -6,6 +6,7 @@ type expr =
   | Literal of literal
   | Unary of token * expr * token_info
   | Variable of token * token_info
+  | Assign of token * token_info * expr
 
 type statement =
   | Expression of expr
@@ -24,6 +25,9 @@ let rec expression_ast_printer = function
       Printf.sprintf "(%s %s)" (token_type_to_str op)
         (expression_ast_printer expr)
   | Variable (name, _) -> token_type_to_str name
+  | Assign (name, _, expr) ->
+      Printf.sprintf "(%s = %s)" (token_type_to_str name)
+        (expression_ast_printer expr)
 
 let rec statement_ast_printer = function
   | Expression expr -> expression_ast_printer expr

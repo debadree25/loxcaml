@@ -71,7 +71,7 @@ let literal_from_token_info token_info =
   | NIL -> Some LNil
   | _ -> None
 
-let rec expression parser = equality parser
+let rec expression parser = assignment parser
 
 and make_binary_continuation tokens_to_match continuation_fn parser left =
   if match_tokens parser tokens_to_match then
@@ -83,6 +83,24 @@ and make_binary_continuation tokens_to_match continuation_fn parser left =
           (Binary (left, operator, right, operator_info))
     | Error e -> Error e
   else Ok left
+
+and assignment parser =
+  let expr = equality parser in
+  if match_tokens parser [ EQUAL ] then
+    match expr with
+    | Ok exp -> (
+      let equals_tok = previous_with_token_info parser in
+      let value = assignment parser in
+      match exp with
+      | Variable (name, name_info) -> (
+        match value with
+        | Ok val_expr -> Ok (Assign (name, name_info, val_expr))
+        | Error e -> Error e
+      )
+      | _ -> Error ("Invalid assignment target", equals_tok)
+    )
+    | Error e -> Error e
+  else expr
 
 and equality parser =
   let equality_continuation =

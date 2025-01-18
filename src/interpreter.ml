@@ -101,6 +101,20 @@ let rec evaluate_expr interpreter_state expr =
           report_runtime_error
             (Printf.sprintf "Undefined variable %s." name_info.lexeme)
             name_info)
+  | Assign (_, name_info, expr) -> (
+      match evaluate_expr interpreter_state expr with
+      | Ok lit ->
+          let exists =
+            Hashtbl.mem interpreter_state.bindings name_info.lexeme
+          in
+          if exists then (
+            Hashtbl.replace interpreter_state.bindings name_info.lexeme lit;
+            Ok lit)
+          else
+            report_runtime_error
+              (Printf.sprintf "Undefined variable %s." name_info.lexeme)
+              name_info
+      | Error err -> Error err)
 
 let evaluate_print interpreter_state expr =
   match evaluate_expr interpreter_state expr with
