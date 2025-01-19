@@ -7,6 +7,7 @@ type expr =
   | Unary of token * expr * token_info
   | Variable of token * token_info
   | Assign of token * token_info * expr
+  | Logical of expr * token * expr * token_info
 
 type statement =
   | Expression of expr
@@ -15,6 +16,7 @@ type statement =
   | Var of token * token_info * expr option
   | Block of statement list
   | If of expr * statement * statement option
+  | While of expr * statement
 
 let rec expression_ast_printer = function
   | Binary (left, op, right, _) ->
@@ -30,6 +32,9 @@ let rec expression_ast_printer = function
   | Assign (name, _, expr) ->
       Printf.sprintf "(%s = %s)" (token_type_to_str name)
         (expression_ast_printer expr)
+  | Logical (left, op, right, _) ->
+      Printf.sprintf "(%s %s %s)" (token_type_to_str op)
+        (expression_ast_printer left) (expression_ast_printer right)
 
 let rec statement_ast_printer = function
   | Expression expr -> expression_ast_printer expr
@@ -54,6 +59,9 @@ let rec statement_ast_printer = function
       in
       Printf.sprintf "if %s then %s %s" (expression_ast_printer expr)
         (statement_ast_printer then_stmt) else_str
+  | While (expr, stmt) ->
+      Printf.sprintf "while %s do %s" (expression_ast_printer expr)
+        (statement_ast_printer stmt)
 
 let ast_printer stmts =
   let rec print_stmts = function

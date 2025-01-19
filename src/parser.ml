@@ -181,6 +181,7 @@ and statement parser =
   if match_tokens parser [ PRINT ] then print_statement parser
   else if match_tokens parser [ LEFT_BRACE ] then block parser
   else if match_tokens parser [ IF ] then if_statement parser
+  else if match_tokens parser [ WHILE ] then while_statement parser
   else expression_statement parser
 
 and if_statement parser =
@@ -192,6 +193,13 @@ and if_statement parser =
     let* else_branch = statement parser in
     Ok (If (condition, then_branch, Some else_branch))
   else Ok (If (condition, then_branch, None))
+
+and while_statement parser =
+  let* _ = consume parser LEFT_PAREN "Expect '(' after 'while'." in
+  let* condition = expression parser in
+  let* _ = consume parser RIGHT_PAREN "Expect ')' after while condition." in
+  let* body = statement parser in
+  Ok (While (condition, body))
 
 and print_statement parser =
   let* expr = expression parser in

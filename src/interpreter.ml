@@ -8,7 +8,6 @@ type environment = {
 
 let ( let* ) = Result.bind
 let ( let** ) = Option.bind
-let ( let+ ) = Result.map
 let make_enviroment enclosing = { enclosing; bindings = Hashtbl.create 10 }
 
 let add_binding environment name value =
@@ -16,8 +15,6 @@ let add_binding environment name value =
 
 let reassign_binding environment name value =
   Hashtbl.replace environment.bindings name value
-
-let binding_exists environment name = Hashtbl.mem environment.bindings name
 
 type interpreter_state = { mutable environment : environment }
 
@@ -173,14 +170,28 @@ let rec evaluate_statement interpreter_state stmt =
       add_binding interpreter_state name_token_info LNil;
       Ok LNil
   | Block stmts -> evaluate_block interpreter_state stmts
-  | If (condition, then_branch, else_branch) -> (
-      let* condition_lit = evaluate_expr interpreter_state condition in
-      if is_truthy condition_lit then
-        evaluate_statement interpreter_state then_branch
-      else
-        match else_branch with
-        | Some stmt -> evaluate_statement interpreter_state stmt
-        | None -> Ok LNil)
+  | If (condition, then_branch, else_branch) ->
+      evaluate_if interpreter_state condition then_branch else_branch
+  | While (condition, body) -> evaluate_while interpreter_state condition body
+
+and evaluate_if interpreter_state condition then_branch else_branch =
+  let* condition_lit = evaluate_expr interpreter_state condition in
+  if is_truthy condition_lit then
+    evaluate_statement interpreter_state then_branch
+  else
+    match else_branch with
+    | Some stmt -> evaluate_statement interpreter_state stmt
+    | None -> Ok LNil
+
+and evaluate_while interpreter_state condition body =
+  let rec loop () =
+    let* condition_lit = evaluate_expr interpreter_state condition in
+    if is_truthy condition_lit then
+      let* _ = evaluate_statement interpreter_state body in
+      loop ()
+    else Ok LNil
+  in
+  loop ()
 
 and evaluate_block interpreter_state stmts =
   push_environment interpreter_state;
