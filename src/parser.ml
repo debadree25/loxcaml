@@ -75,17 +75,28 @@ let literal_from_token_info token_info =
 
 let rec expression parser = assignment parser
 
-and make_binary_continuation tokens_to_match continuation_fn parser left =
+and make_binaryish_continuation tokens_to_match continuation_fn mapper_fn parser
+    left =
   if match_tokens parser tokens_to_match then
     let operator_info = previous_with_token_info parser in
     let operator = operator_info.ttype in
     let* right = continuation_fn parser in
-    make_binary_continuation tokens_to_match continuation_fn parser
-      (Binary (left, operator, right, operator_info))
+    make_binaryish_continuation tokens_to_match continuation_fn mapper_fn parser
+      (mapper_fn (left, operator, right, operator_info))
   else Ok left
 
+and make_binary_continuation tokens_to_match continuation_fn parser left =
+  make_binaryish_continuation tokens_to_match continuation_fn
+    (fun (left, op, right, op_info) -> Binary (left, op, right, op_info))
+    parser left
+
+and make_logical_continuation tokens_to_match continuation_fn parser left =
+  make_binaryish_continuation tokens_to_match continuation_fn
+    (fun (left, op, right, op_info) -> Logical (left, op, right, op_info))
+    parser left
+
 and assignment parser =
-  let* exp = equality parser in
+  let* exp = logical_or parser in
   if match_tokens parser [ EQUAL ] then
     let equals_tok = previous_with_token_info parser in
     match exp with
@@ -94,6 +105,16 @@ and assignment parser =
         Ok (Assign (name, name_info, val_expr))
     | _ -> Error ("Invalid assignment target", equals_tok)
   else Ok exp
+
+and logical_or parser =
+  let logical_or_continuation = make_logical_continuation [ OR ] logical_and in
+  let* expr = logical_and parser in
+  logical_or_continuation parser expr
+
+and logical_and parser =
+  let logical_and_continuation = make_logical_continuation [ AND ] equality in
+  let* expr = equality parser in
+  logical_and_continuation parser expr
 
 and equality parser =
   let equality_continuation =

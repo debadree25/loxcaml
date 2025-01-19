@@ -148,6 +148,16 @@ let rec evaluate_expr interpreter_state expr =
       let* lit = evaluate_expr interpreter_state expr in
       let* _ = reassign_binding interpreter_state name_info lit in
       Ok lit
+  | Logical (left, op, right, _) ->
+      evaluate_logical interpreter_state left op right
+
+and evaluate_logical interpreter_state left op right =
+  let* left_lit = evaluate_expr interpreter_state left in
+  if op = OR then
+    if is_truthy left_lit then Ok left_lit
+    else evaluate_expr interpreter_state right
+  else if not (is_truthy left_lit) then Ok left_lit
+  else evaluate_expr interpreter_state right
 
 let evaluate_print interpreter_state expr =
   let* lit = evaluate_expr interpreter_state expr in
