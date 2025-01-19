@@ -7,7 +7,8 @@ type environment = {
 }
 
 let ( let* ) = Result.bind
-
+let ( let** ) = Option.bind
+let ( let+ ) = Result.map
 let make_enviroment enclosing = { enclosing; bindings = Hashtbl.create 10 }
 
 let add_binding environment name value =
@@ -18,13 +19,9 @@ let reassign_binding environment name value =
 
 let binding_exists environment name = Hashtbl.mem environment.bindings name
 
-type interpreter_state = {
-  mutable environment : environment;
-  mutable had_error : bool;
-}
+type interpreter_state = { mutable environment : environment }
 
-let make_interpreter_state () =
-  { environment = make_enviroment None; had_error = false }
+let make_interpreter_state () = { environment = make_enviroment None }
 
 let report_runtime_error message token_info =
   Printf.eprintf "%s\n[line %d]\n" message token_info.line;
@@ -38,34 +35,39 @@ let pop_environment interpreter_state =
   interpreter_state.environment <-
     Option.get interpreter_state.environment.enclosing
 
-let add_binding interpreter_state name value =
-  add_binding interpreter_state.environment name value
+let add_binding interpreter_state name_info value =
+  add_binding interpreter_state.environment name_info.lexeme value
 
-let get_binding_and_env interpreter_state name =
+let get_binding_and_env interpreter_state name_info =
   let rec get_binding_and_env' environment =
-    match Hashtbl.find_opt environment.bindings name with
-    | Some value -> Some (environment, name, value)
-    | None -> (
-        match environment.enclosing with
-        | Some enclosing -> get_binding_and_env' enclosing
-        | None -> None)
+    match Hashtbl.find_opt environment.bindings name_info.lexeme with
+    | Some value -> Some (environment, name_info.lexeme, value)
+    | None ->
+        let** enclosing = environment.enclosing in
+        get_binding_and_env' enclosing
   in
   get_binding_and_env' interpreter_state.environment
 
-let get_binding_value interpreter_state name =
-  match get_binding_and_env interpreter_state name with
+let get_binding_value interpreter_state name_info =
+  match get_binding_and_env interpreter_state name_info with
   | Some (_, _, value) -> Ok value
-  | None -> Error (Printf.sprintf "Undefined variable %s." name)
+  | None ->
+      report_runtime_error
+        (Printf.sprintf "Undefined variable %s." name_info.lexeme)
+        name_info
 
 let binding_exists interpreter_state name =
   match get_binding_and_env interpreter_state name with
   | Some _ -> true
   | None -> false
 
-let reassign_binding interpreter_state name value =
-  match get_binding_and_env interpreter_state name with
+let reassign_binding interpreter_state name_info value =
+  match get_binding_and_env interpreter_state name_info with
   | Some (environment, name, _) -> Ok (reassign_binding environment name value)
-  | None -> Error (Printf.sprintf "Undefined variable %s." name)
+  | None ->
+      report_runtime_error
+        (Printf.sprintf "Undefined variable %s." name_info.lexeme)
+        name_info
 
 let interpret_literal_to_str = function
   | LBool b -> string_of_bool b
@@ -135,56 +137,40 @@ let rec evaluate_expr interpreter_state expr =
   match expr with
   | Literal lit -> Ok lit
   | Grouping expr -> evaluate_expr interpreter_state expr
-  | Unary (op, right, op_info) -> (
-      match evaluate_expr interpreter_state right with
-      | Ok right_lit -> evaluate_unary op right_lit op_info
-      | Error _ as e -> e)
-  | Binary (left, op, right, op_info) -> (
-      match
-        ( evaluate_expr interpreter_state left,
-          evaluate_expr interpreter_state right )
-      with
-      | Ok left_lit, Ok right_lit ->
-          evaluate_binary left_lit op right_lit op_info
-      | Error err, _ -> Error err
-      | _, Error err -> Error err)
-  | Variable (_, name_info) -> (
-      match get_binding_value interpreter_state name_info.lexeme with
-      | Ok lit -> Ok lit
-      | Error msg -> report_runtime_error msg name_info)
-  | Assign (_, name_info, expr) -> (
-      match evaluate_expr interpreter_state expr with
-      | Ok lit -> (
-          match reassign_binding interpreter_state name_info.lexeme lit with
-          | Ok _ -> Ok lit
-          | Error err -> report_runtime_error err name_info)
-      | Error err -> Error err)
+  | Unary (op, right, op_info) ->
+      let* right_lit = evaluate_expr interpreter_state right in
+      evaluate_unary op right_lit op_info
+  | Binary (left, op, right, op_info) ->
+      let* left_lit = evaluate_expr interpreter_state left in
+      let* right_lit = evaluate_expr interpreter_state right in
+      evaluate_binary left_lit op right_lit op_info
+  | Variable (_, name_info) ->
+      let* lit = get_binding_value interpreter_state name_info in
+      Ok lit
+  | Assign (_, name_info, expr) ->
+      let* lit = evaluate_expr interpreter_state expr in
+      let* _ = reassign_binding interpreter_state name_info lit in
+      Ok lit
 
 let evaluate_print interpreter_state expr =
-  match evaluate_expr interpreter_state expr with
-  | Ok lit ->
-      Printf.printf "%s\n" (interpret_literal_to_str lit);
-      Ok LNil
-  | Error err -> Error err
+  let* lit = evaluate_expr interpreter_state expr in
+  Printf.printf "%s\n" (interpret_literal_to_str lit);
+  Ok LNil
 
 let rec evaluate_statement interpreter_state stmt =
   match stmt with
   | Expression expr -> evaluate_expr interpreter_state expr
   | Print expr -> evaluate_print interpreter_state expr
-  | Evaluation stmt -> (
-      match evaluate_statement interpreter_state stmt with
-      | Ok lit ->
-          Printf.printf "%s\n" (interpret_literal_to_str lit);
-          Ok LNil
-      | Error err -> Error err)
-  | Var (_, name_token_info, Some expr) -> (
-      match evaluate_expr interpreter_state expr with
-      | Ok lit ->
-          add_binding interpreter_state name_token_info.lexeme lit;
-          Ok LNil
-      | Error err -> Error err)
+  | Evaluation stmt ->
+      let* lit = evaluate_statement interpreter_state stmt in
+      Printf.printf "%s\n" (interpret_literal_to_str lit);
+      Ok LNil
+  | Var (_, name_token_info, Some expr) ->
+      let* lit = evaluate_expr interpreter_state expr in
+      add_binding interpreter_state name_token_info lit;
+      Ok LNil
   | Var (_, name_token_info, None) ->
-      add_binding interpreter_state name_token_info.lexeme LNil;
+      add_binding interpreter_state name_token_info LNil;
       Ok LNil
   | Block stmts -> evaluate_block interpreter_state stmts
   | If (condition, then_branch, else_branch) -> (
@@ -201,10 +187,9 @@ and evaluate_block interpreter_state stmts =
   let rec eval_stmts stmts =
     match stmts with
     | [] -> Ok LNil
-    | stmt :: rest -> (
-        match evaluate_statement interpreter_state stmt with
-        | Ok _ -> eval_stmts rest
-        | Error err -> Error err)
+    | stmt :: rest ->
+        let* _ = evaluate_statement interpreter_state stmt in
+        eval_stmts rest
   in
   let evaluated = eval_stmts stmts in
   pop_environment interpreter_state;
