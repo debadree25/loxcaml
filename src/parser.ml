@@ -200,6 +200,7 @@ and var_declaration parser =
 
 and statement parser =
   if match_tokens parser [ PRINT ] then print_statement parser
+  else if match_tokens parser [ FOR ] then for_statement parser
   else if match_tokens parser [ LEFT_BRACE ] then block parser
   else if match_tokens parser [ IF ] then if_statement parser
   else if match_tokens parser [ WHILE ] then while_statement parser
@@ -214,6 +215,42 @@ and if_statement parser =
     let* else_branch = statement parser in
     Ok (If (condition, then_branch, Some else_branch))
   else Ok (If (condition, then_branch, None))
+
+and for_statement parser =
+  let* _ = consume parser LEFT_PAREN "Expect '(' after 'for'." in
+  let* initializer_stmt =
+    if match_tokens parser [ SEMICOLON ] then Ok None
+    else if match_tokens parser [ VAR ] then
+      let* var_decl = var_declaration parser in
+      Ok (Some var_decl)
+    else
+      let* expr = expression_statement parser in
+      Ok (Some expr)
+  in
+  let* condition =
+    if not (check parser SEMICOLON) then expression parser
+    else Ok (Literal (LBool true))
+  in
+  let* _ = consume parser SEMICOLON "Expect ';' after loop condition." in
+  let* increment =
+    if not (check parser RIGHT_PAREN) then
+      let* expr = expression parser in
+      Ok (Some expr)
+    else Ok None
+  in
+  let* _ = consume parser RIGHT_PAREN "Expect ')' after for clauses." in
+  let* body = statement parser in
+  let body =
+    match increment with
+    | Some expr -> Block [ body; Expression expr ]
+    | None -> body
+  in
+  let body =
+    match initializer_stmt with
+    | Some stmt -> Block [ stmt; While (condition, body) ]
+    | None -> While (condition, body)
+  in
+  Ok body
 
 and while_statement parser =
   let* _ = consume parser LEFT_PAREN "Expect '(' after 'while'." in
