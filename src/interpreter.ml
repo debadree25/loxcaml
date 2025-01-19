@@ -78,7 +78,7 @@ let is_truthy = function
   | LBool b -> b
   | LNil -> false
   | LNumber n -> n <> 0.0
-  | LString s -> String.length s > 0
+  | LString _ -> true
 
 let evaluate_unary op right op_info =
   match (op, right) with
