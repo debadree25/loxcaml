@@ -1,13 +1,12 @@
 open Ast
 open Token
+open Utils
 
 type environment = {
   enclosing : environment option;
   bindings : (string, literal) Hashtbl.t;
 }
 
-let ( let* ) = Result.bind
-let ( let** ) = Option.bind
 let make_enviroment enclosing = { enclosing; bindings = Hashtbl.create 10 }
 
 let add_binding environment name value =

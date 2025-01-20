@@ -1,13 +1,12 @@
 open Token
 open Ast
+open Utils
 
 type parser = {
   mutable tokens : token_info array;
   mutable current : int;
   mutable had_error : bool;
 }
-
-let ( let* ) = Result.bind
 
 let make_parser (tokens : token_info list) =
   { tokens = Array.of_list tokens; current = 0; had_error = false }
