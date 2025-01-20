@@ -8,6 +8,7 @@ type expr =
   | Variable of token * token_info
   | Assign of token * token_info * expr
   | Logical of expr * token * expr * token_info
+  | Call of expr * expr list * token_info
 
 type statement =
   | Expression of expr
@@ -28,13 +29,25 @@ let rec expression_ast_printer = function
   | Unary (op, expr, _) ->
       Printf.sprintf "(%s %s)" (token_type_to_str op)
         (expression_ast_printer expr)
-  | Variable (name, _) -> token_type_to_str name
+  | Variable (name, _) ->
+      Printf.sprintf "(identifier %s)" (token_type_to_str name)
   | Assign (name, _, expr) ->
       Printf.sprintf "(%s = %s)" (token_type_to_str name)
         (expression_ast_printer expr)
   | Logical (left, op, right, _) ->
       Printf.sprintf "(%s %s %s)" (token_type_to_str op)
-        (expression_ast_printer left) (expression_ast_printer right)
+        (expression_ast_printer left)
+        (expression_ast_printer right)
+  | Call (callee, args, _) ->
+      let rec print_args = function
+        | [] -> ""
+        | arg :: rest ->
+            Printf.sprintf "%s %s" (print_args rest)
+              (expression_ast_printer arg)
+      in
+      Printf.sprintf "(call %s %s)"
+        (expression_ast_printer callee)
+        (print_args args)
 
 let rec statement_ast_printer = function
   | Expression expr -> expression_ast_printer expr
@@ -47,8 +60,10 @@ let rec statement_ast_printer = function
   | Block stmts ->
       let rec print_stmts = function
         | [] -> ""
-        | stmt :: rest -> Printf.sprintf "%s\n%s" (statement_ast_printer stmt)
-                            (print_stmts rest)
+        | stmt :: rest ->
+            Printf.sprintf "%s\n%s"
+              (statement_ast_printer stmt)
+              (print_stmts rest)
       in
       Printf.sprintf "{\n%s}" (print_stmts stmts)
   | If (expr, then_stmt, else_stmt) ->
@@ -57,10 +72,13 @@ let rec statement_ast_printer = function
         | Some stmt -> Printf.sprintf "else %s" (statement_ast_printer stmt)
         | None -> ""
       in
-      Printf.sprintf "if %s then %s %s" (expression_ast_printer expr)
-        (statement_ast_printer then_stmt) else_str
+      Printf.sprintf "if %s then %s %s"
+        (expression_ast_printer expr)
+        (statement_ast_printer then_stmt)
+        else_str
   | While (expr, stmt) ->
-      Printf.sprintf "while %s do %s" (expression_ast_printer expr)
+      Printf.sprintf "while %s do %s"
+        (expression_ast_printer expr)
         (statement_ast_printer stmt)
 
 let ast_printer stmts =

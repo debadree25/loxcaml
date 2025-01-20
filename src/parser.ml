@@ -145,7 +145,31 @@ and unary parser =
     let operator = operator_info.ttype in
     let* right = unary parser in
     Ok (Unary (operator, right, operator_info))
-  else primary parser
+  else call parser
+
+and call parser =
+  let rec call_helper callee =
+    if match_tokens parser [ LEFT_PAREN ] then
+      let* arguments = arguments parser in
+      let* _ = consume parser RIGHT_PAREN "Expect ')' after arguments" in
+      call_helper (Call (callee, arguments, previous_with_token_info parser))
+    else Ok callee
+  in
+  let* callee = primary parser in
+  call_helper callee
+
+and arguments parser =
+  let rec arguments_helper args argCount =
+    if argCount > 255 then
+      Error ("Cannot have more than 255 arguments", peek_with_token_info parser)
+    else if not (check parser RIGHT_PAREN) then
+      let* arg = expression parser in
+      let args = arg :: args in
+      if match_tokens parser [ COMMA ] then arguments_helper args (argCount + 1)
+      else Ok args
+    else Ok []
+  in
+  arguments_helper [] 0
 
 and primary parser =
   if

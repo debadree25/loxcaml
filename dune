@@ -2,7 +2,7 @@
 
 (executable
  (name main)
- (libraries lwt))
+ (libraries base unix lwt))
 
 (env
   (dev

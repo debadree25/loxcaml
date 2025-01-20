@@ -2,6 +2,7 @@ open Ast
 open Token
 open Utils
 open Value
+open Builtins
 
 type environment = {
   enclosing : environment option;
@@ -9,6 +10,11 @@ type environment = {
 }
 
 let make_enviroment enclosing = { enclosing; bindings = Hashtbl.create 10 }
+
+let make_globals environment =
+  List.iter
+    (fun (name, value) -> Hashtbl.add environment.bindings name value)
+    builtins_list
 
 let add_binding environment name value =
   Hashtbl.add environment.bindings name value
@@ -18,7 +24,10 @@ let reassign_binding environment name value =
 
 type interpreter_state = { mutable environment : environment }
 
-let make_interpreter_state () = { environment = make_enviroment None }
+let make_interpreter_state () =
+  let environment = make_enviroment None in
+  make_globals environment;
+  { environment }
 
 let report_runtime_error message token_info =
   Printf.eprintf "%s\n[line %d]\n" message token_info.line;
@@ -76,10 +85,8 @@ let interpret_literal_to_str = function
 
 let interpret_value_to_str = function
   | Primitive lit -> interpret_literal_to_str lit
-  | Function (_, _, fn_type) -> (
-      match fn_type with
-      | NativeFunction -> "<native fn>"
-      | UserFunction -> "<fn>")
+  | NativeFunc _ -> "<native fn>"
+  | UserFunc _ -> "<fn>"
 
 let is_truthy = function
   | Primitive lit -> (
@@ -88,12 +95,12 @@ let is_truthy = function
       | LNil -> false
       | LNumber n -> n <> 0.0
       | LString _ -> true)
-  | Function _ -> true
+  | NativeFunc _ | UserFunc _ -> true
 
 let evaluate_unary op right op_info =
   match (op, right) with
   | BANG, (_ as right_lit) -> Ok (LBool (not (is_truthy right_lit)))
-  | MINUS, Primitive LNumber n -> Ok (LNumber (-.n))
+  | MINUS, Primitive (LNumber n) -> Ok (LNumber (-.n))
   | MINUS, _ -> report_runtime_error "Operand must be a number." op_info
   | _ -> report_runtime_error "Invalid unary operator." op_info
 
@@ -104,11 +111,13 @@ let is_pure_binary_numeric_op = function
 let is_equality_op = function BANG_EQUAL | EQUAL_EQUAL -> true | _ -> false
 
 let extract_number_from_value = function
-  | Primitive LNumber n -> Some n
+  | Primitive (LNumber n) -> Some n
   | _ -> None
 
 let pure_numeric_binary_op left op right op_info =
-  match (extract_number_from_value left, op, extract_number_from_value right) with
+  match
+    (extract_number_from_value left, op, extract_number_from_value right)
+  with
   | Some l, STAR, Some r -> Ok (Primitive (LNumber (l *. r)))
   | Some l, SLASH, Some r -> Ok (Primitive (LNumber (l /. r)))
   | Some l, MINUS, Some r -> Ok (Primitive (LNumber (l -. r)))
@@ -120,12 +129,18 @@ let pure_numeric_binary_op left op right op_info =
 
 let equality_op left op right op_info =
   match (left, op, right) with
-  | Primitive LNumber l, BANG_EQUAL, Primitive LNumber r -> Ok (Primitive (LBool (l <> r)))
-  | Primitive LNumber l, EQUAL_EQUAL, Primitive LNumber r -> Ok (Primitive (LBool (l = r)))
-  | Primitive LBool l, BANG_EQUAL, Primitive LBool r -> Ok (Primitive (LBool (l <> r)))
-  | Primitive LBool l, EQUAL_EQUAL, Primitive LBool r -> Ok (Primitive (LBool (l = r)))
-  | Primitive LString l, BANG_EQUAL, Primitive LString r -> Ok (Primitive (LBool (l <> r)))
-  | Primitive LString l, EQUAL_EQUAL, Primitive LString r -> Ok (Primitive (LBool (l = r)))
+  | Primitive (LNumber l), BANG_EQUAL, Primitive (LNumber r) ->
+      Ok (Primitive (LBool (l <> r)))
+  | Primitive (LNumber l), EQUAL_EQUAL, Primitive (LNumber r) ->
+      Ok (Primitive (LBool (l = r)))
+  | Primitive (LBool l), BANG_EQUAL, Primitive (LBool r) ->
+      Ok (Primitive (LBool (l <> r)))
+  | Primitive (LBool l), EQUAL_EQUAL, Primitive (LBool r) ->
+      Ok (Primitive (LBool (l = r)))
+  | Primitive (LString l), BANG_EQUAL, Primitive (LString r) ->
+      Ok (Primitive (LBool (l <> r)))
+  | Primitive (LString l), EQUAL_EQUAL, Primitive (LString r) ->
+      Ok (Primitive (LBool (l = r)))
   | Primitive LNil, BANG_EQUAL, Primitive LNil -> Ok (Primitive (LBool false))
   | Primitive LNil, EQUAL_EQUAL, Primitive LNil -> Ok (Primitive (LBool true))
   | _, BANG_EQUAL, _ -> Ok (Primitive (LBool true))
@@ -138,8 +153,10 @@ let evaluate_binary left op right op_info =
   else if is_equality_op op then equality_op left op right op_info
   else
     match (left, op, right) with
-    | Primitive LString l, PLUS, Primitive LString r -> Ok (Primitive (LString (l ^ r)))
-    | Primitive LNumber l, PLUS, Primitive LNumber r -> Ok (Primitive (LNumber (l +. r)))
+    | Primitive (LString l), PLUS, Primitive (LString r) ->
+        Ok (Primitive (LString (l ^ r)))
+    | Primitive (LNumber l), PLUS, Primitive (LNumber r) ->
+        Ok (Primitive (LNumber (l +. r)))
     | _ ->
         report_runtime_error "Operands must be two numbers or two strings."
           op_info
@@ -165,6 +182,26 @@ let rec evaluate_expr interpreter_state expr =
       Ok lit
   | Logical (left, op, right, _) ->
       evaluate_logical interpreter_state left op right
+  | Call (callee, args, paren) ->
+      evaluate_call interpreter_state callee args paren
+
+and evaluate_call interpreter_state callee args paren =
+  let* callee_val = evaluate_expr interpreter_state callee in
+  match callee_val with
+  | NativeFunc (arity, _, func) ->
+      if List.length args <> arity then
+        report_runtime_error
+          (Printf.sprintf "Expected %d arguments but got %d." arity
+             (List.length args))
+          paren
+      else
+        let* args_val =
+          result_list_map
+            (evaluate_expr interpreter_state)
+            args
+        in
+        Ok (func args_val)
+  | _ -> report_runtime_error "Can only call functions and classes." paren
 
 and evaluate_logical interpreter_state left op right =
   let* left_lit = evaluate_expr interpreter_state left in

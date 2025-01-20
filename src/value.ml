@@ -1,10 +1,7 @@
 open Ast
 open Token
 
-type func_type =
-  | NativeFunction
-  | UserFunction
-
 type value =
   | Primitive of literal
-  | Function of int * statement * func_type
+  | NativeFunc of int * string * (value list -> value)
+  | UserFunc of int * token_info * string * token_info list * statement list
