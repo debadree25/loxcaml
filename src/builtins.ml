@@ -1,4 +1,3 @@
-open Ast
 open Value
 
 let clock = NativeFunc (0, "clock", fun _ -> Primitive (LNumber (Unix.time ())))

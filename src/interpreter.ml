@@ -86,7 +86,7 @@ let interpret_literal_to_str = function
 let interpret_value_to_str = function
   | Primitive lit -> interpret_literal_to_str lit
   | NativeFunc _ -> "<native fn>"
-  | UserFunc _ -> "<fn>"
+  | UserFunc (_, _, name, _, _) -> Printf.sprintf "<fn %s>" name
 
 let is_truthy = function
   | Primitive lit -> (
@@ -187,20 +187,36 @@ let rec evaluate_expr interpreter_state expr =
 
 and evaluate_call interpreter_state callee args paren =
   let* callee_val = evaluate_expr interpreter_state callee in
+  let check_arity arity =
+    if List.length args <> arity then
+      report_runtime_error
+        (Printf.sprintf "Expected %d arguments but got %d." arity
+           (List.length args))
+        paren
+    else Ok () in
   match callee_val with
   | NativeFunc (arity, _, func) ->
-      if List.length args <> arity then
-        report_runtime_error
-          (Printf.sprintf "Expected %d arguments but got %d." arity
-             (List.length args))
-          paren
-      else
+      (let* _ = check_arity arity in
         let* args_val =
-          result_list_map
-            (evaluate_expr interpreter_state)
-            args
+          result_list_map (evaluate_expr interpreter_state) args
         in
-        Ok (func args_val)
+        Ok (func args_val))
+  | UserFunc (arity, _, _, params, body) -> (
+    let* _ = check_arity arity in
+    push_environment interpreter_state;
+    let rec bind_params param arg =
+      match (param, arg) with
+      | [], [] -> Ok ()
+      | (param :: rest_params), (arg :: rest_args) ->
+          let* evaluated_arg = evaluate_expr interpreter_state arg in
+          add_binding interpreter_state param evaluated_arg;
+          bind_params rest_params rest_args
+      | _ -> report_runtime_error "Mismatched number of arguments." paren in
+    let* _ = bind_params params args in
+    let* _ = evaluate_statement interpreter_state body in
+    pop_environment interpreter_state;
+    Ok (Primitive LNil)
+  )
   | _ -> report_runtime_error "Can only call functions and classes." paren
 
 and evaluate_logical interpreter_state left op right =
@@ -211,12 +227,12 @@ and evaluate_logical interpreter_state left op right =
   else if not (is_truthy left_lit) then Ok left_lit
   else evaluate_expr interpreter_state right
 
-let evaluate_print interpreter_state expr =
+and evaluate_print interpreter_state expr =
   let* v = evaluate_expr interpreter_state expr in
   Printf.printf "%s\n" (interpret_value_to_str v);
   Ok (Primitive LNil)
 
-let rec evaluate_statement interpreter_state stmt =
+and evaluate_statement interpreter_state stmt =
   match stmt with
   | Expression expr -> evaluate_expr interpreter_state expr
   | Print expr -> evaluate_print interpreter_state expr
@@ -235,6 +251,15 @@ let rec evaluate_statement interpreter_state stmt =
   | If (condition, then_branch, else_branch) ->
       evaluate_if interpreter_state condition then_branch else_branch
   | While (condition, body) -> evaluate_while interpreter_state condition body
+  | Function (_, name_info, params, body) ->
+      evaluate_function interpreter_state name_info params body
+
+and evaluate_function interpreter_state name_info params body =
+  let arity = List.length params in
+  let name = name_info.lexeme in
+  let func = UserFunc (arity, name_info, name, params, body) in
+  add_binding interpreter_state name_info func;
+  Ok (Primitive LNil)
 
 and evaluate_if interpreter_state condition then_branch else_branch =
   let* condition_lit = evaluate_expr interpreter_state condition in

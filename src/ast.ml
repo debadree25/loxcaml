@@ -18,6 +18,7 @@ type statement =
   | Block of statement list
   | If of expr * statement * statement option
   | While of expr * statement
+  | Function of token * token_info * token_info list * statement
 
 let rec expression_ast_printer = function
   | Binary (left, op, right, _) ->
@@ -80,6 +81,17 @@ let rec statement_ast_printer = function
       Printf.sprintf "while %s do %s"
         (expression_ast_printer expr)
         (statement_ast_printer stmt)
+  | Function (name, _, params, body) ->
+      let rec print_params = function
+        | [] -> ""
+        | param :: rest ->
+            Printf.sprintf "%s %s" (print_params rest)
+              (token_type_to_str param.ttype)
+      in
+      Printf.sprintf "function %s (%s) %s"
+        (token_type_to_str name)
+        (print_params params)
+        (statement_ast_printer body)
 
 let ast_printer stmts =
   let rec print_stmts = function

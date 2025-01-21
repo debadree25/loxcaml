@@ -223,11 +223,38 @@ and var_declaration parser =
 
 and statement parser =
   if match_tokens parser [ PRINT ] then print_statement parser
+  else if match_tokens parser [ FUN ] then function_declaration parser
   else if match_tokens parser [ FOR ] then for_statement parser
   else if match_tokens parser [ LEFT_BRACE ] then block parser
   else if match_tokens parser [ IF ] then if_statement parser
   else if match_tokens parser [ WHILE ] then while_statement parser
   else expression_statement parser
+
+and function_declaration parser =
+  let* name_token =
+    consume_by_pattern parser T_IDENTIFIER "Expect function name" in
+  let name_token_info = previous_with_token_info parser in
+  let* _ = consume parser LEFT_PAREN "Expect '(' after function name" in
+  let* params = function_parameters parser in
+  let* _ = consume parser RIGHT_PAREN "Expect ')' after function parameters" in
+  let* _ = consume parser LEFT_BRACE "Expect '{' before function body" in
+  let* body = block parser in
+  Ok (Function (name_token, name_token_info, params, body))
+
+and function_parameters parser =
+  let rec function_parameters_helper params =
+    if not (check parser RIGHT_PAREN) then
+      let* _ =
+        consume_by_pattern parser T_IDENTIFIER "Expect parameter name"
+      in
+      let param_token_info = previous_with_token_info parser in
+      let params = param_token_info :: params in
+      if match_tokens parser [ COMMA ] then
+        function_parameters_helper params
+      else Ok params
+    else Ok []
+  in
+  function_parameters_helper []
 
 and if_statement parser =
   let* _ = consume parser LEFT_PAREN "Expect '(' after 'if'." in
