@@ -1,13 +1,7 @@
 open Ast
 open Token
 open Utils
-open Value
-open Builtins
-
-type environment = {
-  enclosing : environment option;
-  bindings : (string, value) Hashtbl.t;
-}
+open Runtime
 
 type ('a, 'b) execution_result = Ok of 'a | Error of 'b | Return of value
 
@@ -24,19 +18,6 @@ let rec execution_result_list_map (f : 'a -> ('b, 'c) execution_result) lst =
       let* ys = execution_result_list_map f xs in
       Ok (y :: ys)
 
-let make_enviroment enclosing = { enclosing; bindings = Hashtbl.create 10 }
-
-let make_globals environment =
-  List.iter
-    (fun (name, value) -> Hashtbl.add environment.bindings name value)
-    builtins_list
-
-let add_binding environment name value =
-  Hashtbl.add environment.bindings name value
-
-let reassign_binding environment name value =
-  Hashtbl.replace environment.bindings name value
-
 type interpreter_state = { mutable environment : environment }
 
 let make_interpreter_state () =
@@ -51,6 +32,9 @@ let report_runtime_error message token_info =
 let push_environment interpreter_state =
   interpreter_state.environment <-
     make_enviroment (Some interpreter_state.environment)
+
+let push_environment_with_enclosing interpreter_state enclosing =
+  interpreter_state.environment <- make_enviroment (Some enclosing)
 
 let pop_environment interpreter_state =
   interpreter_state.environment <-
@@ -101,7 +85,7 @@ let interpret_literal_to_str = function
 let interpret_value_to_str = function
   | Primitive lit -> interpret_literal_to_str lit
   | NativeFunc _ -> "<native fn>"
-  | UserFunc (_, _, name, _, _) -> Printf.sprintf "<fn %s>" name
+  | UserFunc (_, _, name, _, _, _) -> Printf.sprintf "<fn %s>" name
 
 let is_truthy = function
   | Primitive lit -> (
@@ -217,9 +201,9 @@ and evaluate_call interpreter_state callee args paren =
         execution_result_list_map (evaluate_expr interpreter_state) args
       in
       Ok (func args_val)
-  | UserFunc (arity, _, _, params, body) -> (
+  | UserFunc (arity, _, _, params, body, closure) -> (
       let* _ = check_arity arity in
-      push_environment interpreter_state;
+      push_environment_with_enclosing interpreter_state closure;
       let rec bind_params param arg =
         match (param, arg) with
         | [], [] -> Ok ()
@@ -280,7 +264,10 @@ and evaluate_statement interpreter_state stmt =
 and evaluate_function interpreter_state name_info params body =
   let arity = List.length params in
   let name = name_info.lexeme in
-  let func = UserFunc (arity, name_info, name, params, body) in
+  let func =
+    UserFunc
+      (arity, name_info, name, params, body, interpreter_state.environment)
+  in
   add_binding interpreter_state name_info func;
   Ok (Primitive LNil)
 
