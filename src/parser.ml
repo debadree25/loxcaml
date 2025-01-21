@@ -224,6 +224,7 @@ and var_declaration parser =
 and statement parser =
   if match_tokens parser [ PRINT ] then print_statement parser
   else if match_tokens parser [ FUN ] then function_declaration parser
+  else if match_tokens parser [ RETURN ] then return_statement parser
   else if match_tokens parser [ FOR ] then for_statement parser
   else if match_tokens parser [ LEFT_BRACE ] then block parser
   else if match_tokens parser [ IF ] then if_statement parser
@@ -232,7 +233,8 @@ and statement parser =
 
 and function_declaration parser =
   let* name_token =
-    consume_by_pattern parser T_IDENTIFIER "Expect function name" in
+    consume_by_pattern parser T_IDENTIFIER "Expect function name"
+  in
   let name_token_info = previous_with_token_info parser in
   let* _ = consume parser LEFT_PAREN "Expect '(' after function name" in
   let* params = function_parameters parser in
@@ -244,17 +246,23 @@ and function_declaration parser =
 and function_parameters parser =
   let rec function_parameters_helper params =
     if not (check parser RIGHT_PAREN) then
-      let* _ =
-        consume_by_pattern parser T_IDENTIFIER "Expect parameter name"
-      in
+      let* _ = consume_by_pattern parser T_IDENTIFIER "Expect parameter name" in
       let param_token_info = previous_with_token_info parser in
       let params = param_token_info :: params in
-      if match_tokens parser [ COMMA ] then
-        function_parameters_helper params
+      if match_tokens parser [ COMMA ] then function_parameters_helper params
       else Ok params
     else Ok []
   in
   function_parameters_helper []
+
+and return_statement parser =
+  let return_token_info = previous_with_token_info parser in
+  let* expr =
+    if not (check parser SEMICOLON) then expression parser
+    else Ok (Literal LNil)
+  in
+  let* _ = consume parser SEMICOLON "Expect ';' after return value" in
+  Ok (Return (return_token_info, Some expr))
 
 and if_statement parser =
   let* _ = consume parser LEFT_PAREN "Expect '(' after 'if'." in

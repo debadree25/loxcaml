@@ -9,6 +9,21 @@ type environment = {
   bindings : (string, value) Hashtbl.t;
 }
 
+type ('a, 'b) execution_result = Ok of 'a | Error of 'b | Return of value
+
+let execution_bind r f =
+  match r with Ok v -> f v | Error _ as e -> e | Return v -> Return v
+
+let ( let* ) = execution_bind
+
+let rec execution_result_list_map (f : 'a -> ('b, 'c) execution_result) lst =
+  match lst with
+  | [] -> Ok []
+  | x :: xs ->
+      let* y = f x in
+      let* ys = execution_result_list_map f xs in
+      Ok (y :: ys)
+
 let make_enviroment enclosing = { enclosing; bindings = Hashtbl.create 10 }
 
 let make_globals environment =
@@ -193,30 +208,34 @@ and evaluate_call interpreter_state callee args paren =
         (Printf.sprintf "Expected %d arguments but got %d." arity
            (List.length args))
         paren
-    else Ok () in
+    else Ok ()
+  in
   match callee_val with
   | NativeFunc (arity, _, func) ->
-      (let* _ = check_arity arity in
-        let* args_val =
-          result_list_map (evaluate_expr interpreter_state) args
-        in
-        Ok (func args_val))
+      let* _ = check_arity arity in
+      let* args_val =
+        execution_result_list_map (evaluate_expr interpreter_state) args
+      in
+      Ok (func args_val)
   | UserFunc (arity, _, _, params, body) -> (
-    let* _ = check_arity arity in
-    push_environment interpreter_state;
-    let rec bind_params param arg =
-      match (param, arg) with
-      | [], [] -> Ok ()
-      | (param :: rest_params), (arg :: rest_args) ->
-          let* evaluated_arg = evaluate_expr interpreter_state arg in
-          add_binding interpreter_state param evaluated_arg;
-          bind_params rest_params rest_args
-      | _ -> report_runtime_error "Mismatched number of arguments." paren in
-    let* _ = bind_params params args in
-    let* _ = evaluate_statement interpreter_state body in
-    pop_environment interpreter_state;
-    Ok (Primitive LNil)
-  )
+      let* _ = check_arity arity in
+      push_environment interpreter_state;
+      let rec bind_params param arg =
+        match (param, arg) with
+        | [], [] -> Ok ()
+        | param :: rest_params, arg :: rest_args ->
+            let* evaluated_arg = evaluate_expr interpreter_state arg in
+            add_binding interpreter_state param evaluated_arg;
+            bind_params rest_params rest_args
+        | _ -> report_runtime_error "Mismatched number of arguments." paren
+      in
+      let* _ = bind_params params args in
+      let block_val = evaluate_statement interpreter_state body in
+      pop_environment interpreter_state;
+      match block_val with
+      | Ok _ -> Ok (Primitive LNil)
+      | Error _ as e -> e
+      | Return v -> Ok v)
   | _ -> report_runtime_error "Can only call functions and classes." paren
 
 and evaluate_logical interpreter_state left op right =
@@ -253,6 +272,10 @@ and evaluate_statement interpreter_state stmt =
   | While (condition, body) -> evaluate_while interpreter_state condition body
   | Function (_, name_info, params, body) ->
       evaluate_function interpreter_state name_info params body
+  | Return (_, Some expr) ->
+      let* v = evaluate_expr interpreter_state expr in
+      Return v
+  | Return (_, None) -> Return (Primitive LNil)
 
 and evaluate_function interpreter_state name_info params body =
   let arity = List.length params in

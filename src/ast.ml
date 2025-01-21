@@ -19,6 +19,7 @@ type statement =
   | If of expr * statement * statement option
   | While of expr * statement
   | Function of token * token_info * token_info list * statement
+  | Return of token_info * expr option
 
 let rec expression_ast_printer = function
   | Binary (left, op, right, _) ->
@@ -92,6 +93,9 @@ let rec statement_ast_printer = function
         (token_type_to_str name)
         (print_params params)
         (statement_ast_printer body)
+  | Return (_, Some expr) ->
+      Printf.sprintf "return %s" (expression_ast_printer expr)
+  | Return (_, None) -> "return"
 
 let ast_printer stmts =
   let rec print_stmts = function

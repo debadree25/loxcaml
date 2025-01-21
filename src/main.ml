@@ -4,7 +4,7 @@ open Parser
 open Ast
 open Interpreter
 
-let tokenize_handler file_contents =
+let tokenize_handler file_contents : (unit, int) result =
   match tokenize file_contents with
   | Ok tokens ->
       token_printer tokens;
@@ -13,7 +13,7 @@ let tokenize_handler file_contents =
       token_printer tokens;
       Error 65
 
-let parse_handler file_contents =
+let parse_handler file_contents : (unit, int) result =
   match tokenize file_contents with
   | Ok tokens -> (
       match parse_tokens tokens with
@@ -23,7 +23,7 @@ let parse_handler file_contents =
       | Error _ -> Error 65)
   | Error _ -> Error 65
 
-let evaluation_handler file_contents =
+let evaluation_handler file_contents : (unit, int) result =
   match tokenize file_contents with
   | Ok tokens -> (
       match parse_tokens tokens with
@@ -33,16 +33,20 @@ let evaluation_handler file_contents =
               (match stmts with [] -> [] | stmt :: _ -> [ Evaluation stmt ])
           with
           | Ok _ -> Ok ()
-          | Error _ -> Error 70)
+          | Error _ -> Error 70
+          | Return _ -> Error 70)
       | Error _ -> Error 65)
   | Error _ -> Error 65
 
-let interpreter_handler file_contents =
+let interpreter_handler file_contents : (unit, int) result =
   match tokenize file_contents with
   | Ok tokens -> (
       match parse_tokens tokens with
       | Ok stmts -> (
-          match interpreter stmts with Ok _ -> Ok () | Error _ -> Error 70)
+          match interpreter stmts with
+          | Ok _ -> Ok ()
+          | Error _ -> Error 70
+          | Return _ -> Error 70)
       | Error _ -> Error 65)
   | Error _ -> Error 65
 

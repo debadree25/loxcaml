@@ -1,5 +1,10 @@
-fun hello(name) {
-  print "Hello, " + name + "!";
+fun get_name() {
+  return "debadree";
 }
 
-hello("Debadree");
+fun say_hello() {
+  print "Hello, " + get_name() + "!";
+}
+
+say_hello();
+
