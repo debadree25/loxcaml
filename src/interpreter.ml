@@ -74,19 +74,6 @@ let reassign_binding interpreter_state name_info value =
         (Printf.sprintf "Undefined variable %s." name_info.lexeme)
         name_info
 
-let interpret_literal_to_str = function
-  | LBool b -> string_of_bool b
-  | LNil -> "nil"
-  | LString s -> s
-  | LNumber n ->
-      if Float.is_integer n then Printf.sprintf "%d" (int_of_float n)
-      else Printf.sprintf "%.15g" n
-
-let interpret_value_to_str = function
-  | Primitive lit -> interpret_literal_to_str lit
-  | NativeFunc _ -> "<native fn>"
-  | UserFunc (_, _, name, _, _, _) -> Printf.sprintf "<fn %s>" name
-
 let is_truthy = function
   | Primitive lit -> (
       match lit with
@@ -232,7 +219,7 @@ and evaluate_logical interpreter_state left op right =
 
 and evaluate_print interpreter_state expr =
   let* v = evaluate_expr interpreter_state expr in
-  Printf.printf "%s\n" (interpret_value_to_str v);
+  Printf.printf "%s\n" (value_to_str v);
   Ok (Primitive LNil)
 
 and evaluate_statement interpreter_state stmt =
@@ -241,7 +228,7 @@ and evaluate_statement interpreter_state stmt =
   | Print expr -> evaluate_print interpreter_state expr
   | Evaluation stmt ->
       let* v = evaluate_statement interpreter_state stmt in
-      Printf.printf "%s\n" (interpret_value_to_str v);
+      Printf.printf "%s\n" (value_to_str v);
       Ok (Primitive LNil)
   | Var (_, name_token_info, Some expr) ->
       let* lit = evaluate_expr interpreter_state expr in
