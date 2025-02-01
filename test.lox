@@ -1,10 +1,10 @@
-var a = "global";
-{
-  fun showA() {
-    print a;
-  }
 
-  showA();
-  var a = "block";
-  showA();
+fun returnFunCallWithArg(func, arg) {
+  return func(arg);
 }
+
+fun pr(d) {
+  print "Hello, World!";
+}
+
+returnFunCallWithArg(pr, "Hello, World!");
