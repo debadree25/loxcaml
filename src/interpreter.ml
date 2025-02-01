@@ -190,19 +190,20 @@ and evaluate_call interpreter_state callee args paren =
       Ok (func args_val)
   | UserFunc (arity, _, _, params, body, closure) -> (
       let* _ = check_arity arity in
+      let* args =
+        execution_result_list_map (evaluate_expr interpreter_state) args in
       let rec bind_params param arg =
         match (param, arg) with
         | [], [] -> Ok ()
         | param :: rest_params, arg :: rest_args ->
-            let* evaluated_arg = evaluate_expr interpreter_state arg in
-            add_binding interpreter_state param evaluated_arg;
+            add_binding interpreter_state param arg;
             bind_params rest_params rest_args
         | _ -> report_runtime_error "Mismatched number of arguments." paren
       in
-      let* _ = bind_params params args in
       (* make the following code more functional style *)
       let present_env = interpreter_state.environment in
-      interpreter_state.environment <- closure;
+      interpreter_state.environment <- make_enviroment (Some closure);
+      let* _ = bind_params params args in
       let block_val = evaluate_statement interpreter_state body in
       interpreter_state.environment <- present_env;
       match block_val with
