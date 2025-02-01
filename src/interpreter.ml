@@ -20,12 +20,10 @@ let rec execution_result_list_map (f : 'a -> ('b, 'c) execution_result) lst =
 
 type interpreter_state = { mutable environment : environment }
 
-let global_env : environment ref = ref { enclosing = None; bindings = Hashtbl.create 10 }
-
 let make_interpreter_state () =
-  global_env := { !global_env with enclosing = Some !global_env };
-  make_globals !global_env;
-  { environment = !global_env }
+  let environment = make_enviroment None in
+  make_globals environment;
+  { environment }
 
 let report_runtime_error message token_info =
   Printf.eprintf "%s\n[line %d]\n" message token_info.line;
@@ -202,9 +200,11 @@ and evaluate_call interpreter_state callee args paren =
         | _ -> report_runtime_error "Mismatched number of arguments." paren
       in
       let* _ = bind_params params args in
-      push_environment_with_enclosing interpreter_state closure;
+      (* make the following code more functional style *)
+      let present_env = interpreter_state.environment in
+      interpreter_state.environment <- closure;
       let block_val = evaluate_statement interpreter_state body in
-      pop_environment interpreter_state;
+      interpreter_state.environment <- present_env;
       match block_val with
       | Ok _ -> Ok (Primitive LNil)
       | Error _ as e -> e
