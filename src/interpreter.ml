@@ -200,7 +200,7 @@ and evaluate_call interpreter_state callee args paren =
             bind_params rest_params rest_args
         | _ -> report_runtime_error "Mismatched number of arguments." paren
       in
-      (* make the following code more functional style *)
+      (* TODO: make the following code more functional style *)
       let present_env = interpreter_state.environment in
       interpreter_state.environment <- make_enviroment (Some closure);
       let* _ = bind_params params args in
