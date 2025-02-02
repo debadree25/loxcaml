@@ -33,12 +33,17 @@ let push_environment interpreter_state =
   interpreter_state.environment <-
     make_enviroment (Some interpreter_state.environment)
 
-let push_environment_with_enclosing interpreter_state enclosing =
-  interpreter_state.environment <- make_enviroment (Some enclosing)
-
 let pop_environment interpreter_state =
   interpreter_state.environment <-
     Option.get interpreter_state.environment.enclosing
+
+let push_closure interpreter_state closure =
+  let existing_env = interpreter_state.environment in
+  interpreter_state.environment <- make_enviroment (Some closure);
+  existing_env
+
+let pop_closure interpreter_state restore_env =
+  interpreter_state.environment <- restore_env
 
 let add_binding interpreter_state name_info value =
   add_binding interpreter_state.environment name_info.lexeme value
@@ -181,31 +186,28 @@ and evaluate_call interpreter_state callee args paren =
         paren
     else Ok ()
   in
+  let evaluate_args =
+    execution_result_list_map (evaluate_expr interpreter_state)
+  in
+  let rec bind_params param arg =
+    match (param, arg) with
+    | [], [] -> Ok ()
+    | param :: rest_params, arg :: rest_args ->
+        add_binding interpreter_state param arg;
+        bind_params rest_params rest_args
+    | _ -> report_runtime_error "Mismatched number of arguments." paren
+  in
+  let* args = evaluate_args args in
   match callee_val with
   | NativeFunc (arity, _, func) ->
       let* _ = check_arity arity in
-      let* args_val =
-        execution_result_list_map (evaluate_expr interpreter_state) args
-      in
-      Ok (func args_val)
+      Ok (func args)
   | UserFunc (arity, _, _, params, body, closure) -> (
       let* _ = check_arity arity in
-      let* args =
-        execution_result_list_map (evaluate_expr interpreter_state) args in
-      let rec bind_params param arg =
-        match (param, arg) with
-        | [], [] -> Ok ()
-        | param :: rest_params, arg :: rest_args ->
-            add_binding interpreter_state param arg;
-            bind_params rest_params rest_args
-        | _ -> report_runtime_error "Mismatched number of arguments." paren
-      in
-      (* TODO: make the following code more functional style *)
-      let present_env = interpreter_state.environment in
-      interpreter_state.environment <- make_enviroment (Some closure);
+      let present_env = push_closure interpreter_state closure in
       let* _ = bind_params params args in
       let block_val = evaluate_statement interpreter_state body in
-      interpreter_state.environment <- present_env;
+      pop_closure interpreter_state present_env;
       match block_val with
       | Ok _ -> Ok (Primitive LNil)
       | Error _ as e -> e
