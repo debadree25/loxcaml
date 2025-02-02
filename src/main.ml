@@ -62,7 +62,7 @@ let command_handler command file_contents =
 
 let () =
   if Array.length Sys.argv < 3 then (
-    Printf.eprintf "Usage: ./your_program.sh tokenize <filename>\n";
+    Printf.eprintf "Usage: ./run.sh tokenize <filename>\n";
     exit 1);
 
   let command = Sys.argv.(1) in
