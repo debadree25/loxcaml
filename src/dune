@@ -1,0 +1,16 @@
+(library
+ (name loxcaml_lib)
+ (wrapped false)
+ (modules ast interpreter parser runtime scanner token utils)
+ (libraries unix lwt))
+
+(executable
+ (name main)
+ (public_name loxcaml)
+ (package loxcaml)
+ (modules main)
+ (libraries loxcaml_lib))
+
+(env
+ (dev
+  (flags (:standard -warn-error -A))))
