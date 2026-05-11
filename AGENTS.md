@@ -18,7 +18,7 @@ dune fmt                            # format
 
 `<command>` is one of `tokenize`, `parse`, `evaluate`, `run`. Exit codes follow Lox conventions: **65** for scan/parse errors, **70** for runtime errors.
 
-`test.lox` at the root is a scratch input you can run manually; the real test suite lives in `test/test_loxcaml.ml` (alcotest).
+`test.lox` at the root is a scratch input you can run manually; the real test suite lives in `test/test_loxcaml.ml` (alcotest). `bench/` holds self-timing `.lox` programs runnable via `./bench/run.sh` — they call `clock()` themselves so the same files compare across interpreters. Baseline on the tree-walker: fib(30) ~0.75s, loop-1M ~0.32s.
 
 ## Architecture in one paragraph
 

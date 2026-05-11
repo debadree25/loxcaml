@@ -4,7 +4,11 @@ version: "0.1"
 synopsis: "A treewalking interpreter for the Lox language, written in OCaml"
 description:
   "LoxCaml is an OCaml implementation of the treewalking interpreter for the Lox language from Crafting Interpreters."
+maintainer: ["Debadree Chatterjee <debadree@tagmango.com>"]
+authors: ["Debadree Chatterjee <debadree@tagmango.com>"]
 license: "MIT"
+homepage: "https://github.com/debadree25/loxcaml"
+bug-reports: "https://github.com/debadree25/loxcaml/issues"
 depends: [
   "ocaml" {>= "4.14"}
   "dune" {>= "3.16"}
@@ -26,3 +30,4 @@ build: [
     "@doc" {with-doc}
   ]
 ]
+dev-repo: "git+https://github.com/debadree25/loxcaml.git"

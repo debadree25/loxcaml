@@ -8,11 +8,17 @@ A treewalking interpreter for the [Lox language](https://craftinginterpreters.co
 - [dune](https://dune.build/) `>= 3.16`
 - `lwt`
 
-The easiest way to get a working toolchain is via [opam](https://opam.ocaml.org/):
+The easiest way to get a working toolchain is the bundled setup script. It handles a fresh Linux or macOS environment end-to-end — installs system prereqs, opam, a local switch, and project deps. On Linux it also detects when bubblewrap is installed but can't sandbox (the usual Docker / WSL / restricted-kernel snag) and falls back to `opam init --disable-sandboxing` instead of failing partway:
+
+```sh
+./setup.sh
+```
+
+Or if you already have opam:
 
 ```sh
 opam switch create . 5.2.0
-opam install . --deps-only
+opam install . --deps-only --with-test
 ```
 
 ## Build

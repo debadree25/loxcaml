@@ -1,0 +1,18 @@
+// Loop-heavy benchmark. A tight 1M-iteration loop stresses
+// variable lookup and arithmetic. The tree-walker re-traverses the
+// AST and re-resolves `i` and `sum` through the env chain on every
+// iteration; a bytecode VM compiles those to stack-slot ops once.
+
+var start = clock();
+var sum = 0;
+var i = 0;
+while (i < 10000000) {
+  sum = sum + i;
+  i = i + 1;
+}
+var elapsed = clock() - start;
+
+print "sum =";
+print sum;
+print "elapsed seconds:";
+print elapsed;

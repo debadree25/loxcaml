@@ -12,7 +12,8 @@ and environment = {
   bindings : (string, value) Hashtbl.t;
 }
 
-let clock = NativeFunc (0, "clock", fun _ -> Primitive (LNumber (Unix.time ())))
+let clock =
+  NativeFunc (0, "clock", fun _ -> Primitive (LNumber (Unix.gettimeofday ())))
 let builtins_list = [ ("clock", clock) ]
 let make_enviroment enclosing = { enclosing; bindings = Hashtbl.create 10 }
 

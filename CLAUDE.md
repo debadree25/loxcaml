@@ -31,6 +31,15 @@ The CLI takes one of four subcommands followed by a path to a `.lox` file:
 
 `test.lox` at the repo root is a scratch input file; `test/` holds the alcotest suite.
 
+## Benchmarks
+
+`bench/` contains self-timing `.lox` programs (they call `clock()` themselves and print elapsed seconds). Run `./bench/run.sh` to execute them all and see both the Lox-level timing and wall-clock time. Current programs:
+
+- `fib.lox` — `fib(35)`.
+- `loop.lox` — 10000000 iteration `while`.
+
+Note: `clock()` is implemented via `Unix.gettimeofday`, so it has microsecond resolution.
+
 ## Architecture
 
 The interpreter is a classic three-stage pipeline. Modules live in `src/` and are wired together in `src/main.ml`:
